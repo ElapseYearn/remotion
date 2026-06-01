@@ -1,17 +1,17 @@
-import type {SequenceNodePath} from '@remotion/studio-shared';
 import React, {useContext, useMemo} from 'react';
 import {Internals, type TSequence} from 'remotion';
-import type {
-	CodePosition,
-	OriginalPosition,
-} from '../../error-overlay/react-overlay/utils/get-source-map';
+import type {CodePosition} from '../../error-overlay/react-overlay/utils/get-source-map';
 import {TIMELINE_TRACK_SEPARATOR} from '../../helpers/colors';
+import type {SequenceNodePathInfo} from '../../helpers/get-timeline-sequence-sort-key';
 import {
 	buildTimelineTree,
 	flattenVisibleTreeNodes,
 	getExpandedTrackHeight,
 } from '../../helpers/timeline-layout';
-import {ExpandedTracksContext} from '../ExpandedTracksProvider';
+import {
+	ExpandedTracksGetterContext,
+	ExpandedTracksSetterContext,
+} from '../ExpandedTracksProvider';
 import {TimelineExpandedRow} from './TimelineExpandedRow';
 
 const expandedSectionBase: React.CSSProperties = {
@@ -24,58 +24,64 @@ const expandedSectionBase: React.CSSProperties = {
 };
 
 const separator: React.CSSProperties = {
-	height: 1,
-	backgroundColor: TIMELINE_TRACK_SEPARATOR,
+	height: 0,
+	borderBottom: `1px solid ${TIMELINE_TRACK_SEPARATOR}`,
 };
 
 export const TimelineExpandedSection: React.FC<{
 	readonly sequence: TSequence;
-	readonly originalLocation: OriginalPosition | null;
-	readonly nodePath: SequenceNodePath | null;
+	readonly validatedLocation: CodePosition;
+	readonly nodePathInfo: SequenceNodePathInfo;
 	readonly nestedDepth: number;
-}> = ({sequence, originalLocation, nodePath, nestedDepth}) => {
-	const {expandedTracks, toggleTrack} = useContext(ExpandedTracksContext);
-	const {dragOverrides, codeValues} = useContext(
-		Internals.VisualModeOverridesContext,
+	readonly keyframeDisplayOffset: number;
+}> = ({
+	sequence,
+	validatedLocation,
+	nodePathInfo,
+	nestedDepth,
+	keyframeDisplayOffset,
+}) => {
+	const {getIsExpanded} = useContext(ExpandedTracksGetterContext);
+	const {toggleTrack} = useContext(ExpandedTracksSetterContext);
+	const {codeValues: visualModeCodeValues} = useContext(
+		Internals.VisualModeCodeValuesContext,
+	);
+	const {getDragOverrides, getEffectDragOverrides} = useContext(
+		Internals.VisualModeDragOverridesContext,
 	);
 
-	const {overrideId} = sequence.controls!;
-
-	const validatedLocation: CodePosition | null = useMemo(() => {
-		if (
-			!originalLocation ||
-			!originalLocation.source ||
-			!originalLocation.line
-		) {
-			return null;
-		}
-
-		return {
-			source: originalLocation.source,
-			line: originalLocation.line,
-			column: originalLocation.column ?? 0,
-		};
-	}, [originalLocation]);
-
 	const tree = useMemo(
-		() => buildTimelineTree({sequence, dragOverrides, codeValues}),
-		[sequence, dragOverrides, codeValues],
+		() =>
+			buildTimelineTree({
+				sequence,
+				nodePathInfo,
+				getDragOverrides,
+				getEffectDragOverrides,
+				codeValues: visualModeCodeValues,
+			}),
+		[
+			sequence,
+			nodePathInfo,
+			getDragOverrides,
+			getEffectDragOverrides,
+			visualModeCodeValues,
+		],
 	);
 
 	const flat = useMemo(
-		() => flattenVisibleTreeNodes({nodes: tree, expandedTracks}),
-		[tree, expandedTracks],
+		() => flattenVisibleTreeNodes({nodes: tree, getIsExpanded}),
+		[tree, getIsExpanded],
 	);
 
 	const expandedHeight = useMemo(
 		() =>
-			getExpandedTrackHeight(
+			getExpandedTrackHeight({
 				sequence,
-				expandedTracks,
-				dragOverrides,
-				codeValues,
-			),
-		[sequence, expandedTracks, dragOverrides, codeValues],
+				nodePathInfo,
+				getIsExpanded,
+				codeValues: visualModeCodeValues,
+			}),
+		[sequence, nodePathInfo, getIsExpanded, visualModeCodeValues],
 	);
 
 	const style = useMemo(() => {
@@ -95,18 +101,18 @@ export const TimelineExpandedSection: React.FC<{
 		<div style={style}>
 			{flat.map(({node, depth}, i) => {
 				return (
-					<React.Fragment key={node.id}>
+					<React.Fragment key={JSON.stringify(node.nodePathInfo)}>
 						{i > 0 ? <div style={separator} /> : null}
 						<TimelineExpandedRow
 							node={node}
 							depth={depth}
 							nestedDepth={nestedDepth}
-							expandedTracks={expandedTracks}
+							getIsExpanded={getIsExpanded}
 							toggleTrack={toggleTrack}
-							overrideId={overrideId}
 							validatedLocation={validatedLocation}
-							nodePath={nodePath}
+							nodePath={nodePathInfo.sequenceSubscriptionKey}
 							schema={schema}
+							keyframeDisplayOffset={keyframeDisplayOffset}
 						/>
 					</React.Fragment>
 				);

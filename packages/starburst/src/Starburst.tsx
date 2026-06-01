@@ -1,5 +1,4 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {type SequenceControls, type SequenceSchema} from 'remotion';
 import {
 	AbsoluteFill,
 	Internals,
@@ -8,8 +7,11 @@ import {
 	useVideoConfig,
 	type AbsoluteFillLayout,
 	type LayoutAndStyle,
+	type SequenceControls,
 	type SequenceProps,
+	type SequenceSchema,
 } from 'remotion';
+import {colorToRgb} from './color-to-rgb';
 
 export type StarburstProps = Omit<
 	SequenceProps,
@@ -25,19 +27,6 @@ export type StarburstProps = Omit<
 		readonly originOffsetX?: number;
 		readonly originOffsetY?: number;
 	};
-
-const hexToRgb = (hex: string): [number, number, number] => {
-	const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-	if (!result) {
-		throw new Error(`Invalid hex color: ${hex}`);
-	}
-
-	return [
-		parseInt(result[1], 16) / 255,
-		parseInt(result[2], 16) / 255,
-		parseInt(result[3], 16) / 255,
-	];
-};
 
 const VERTEX_SHADER = `
 attribute vec2 position;
@@ -230,10 +219,10 @@ const StarburstCanvas: React.FC<{
 
 		const pixelData = new Uint8Array(colors.length * 4);
 		for (let i = 0; i < colors.length; i++) {
-			const rgb = hexToRgb(colors[i]);
-			pixelData[i * 4] = Math.round(rgb[0] * 255);
-			pixelData[i * 4 + 1] = Math.round(rgb[1] * 255);
-			pixelData[i * 4 + 2] = Math.round(rgb[2] * 255);
+			const rgb = colorToRgb(colors[i]);
+			pixelData[i * 4] = rgb[0];
+			pixelData[i * 4 + 1] = rgb[1];
+			pixelData[i * 4 + 2] = rgb[2];
 			pixelData[i * 4 + 3] = 255;
 		}
 
@@ -335,6 +324,7 @@ const starburstSchema = {
 		description: 'Origin Offset Y',
 	},
 	...Internals.sequenceStyleSchema,
+	hidden: Internals.hiddenField,
 } as const satisfies SequenceSchema;
 
 const StarburstInner: React.FC<
@@ -407,6 +397,7 @@ const StarburstInner: React.FC<
 		<Sequence
 			durationInFrames={resolvedDuration}
 			name="<Starburst>"
+			_remotionInternalDocumentationLink="https://www.remotion.dev/docs/starburst/starburst"
 			_experimentalControls={controls}
 			{...sequenceProps}
 			style={style}

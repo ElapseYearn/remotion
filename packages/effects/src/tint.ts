@@ -1,15 +1,30 @@
-import type {EffectDescriptor, SequenceSchema} from 'remotion';
+import type {SequenceSchema} from 'remotion';
 import {Internals} from 'remotion';
+import {
+	assertOptionalFiniteNumber,
+	validateUnitInterval,
+} from './color-utils.js';
+import {
+	assertEffectParamsObject,
+	assertRequiredColor,
+} from './validate-effect-param.js';
 
-const {createDescriptor, defineEffect} = Internals;
+const {createEffect} = Internals;
+
+const DEFAULT_AMOUNT = 0.5 as const;
 
 export const tintSchema = {
+	color: {
+		type: 'color',
+		default: undefined,
+		description: 'Color',
+	},
 	amount: {
 		type: 'number',
 		min: 0,
 		max: 1,
 		step: 0.01,
-		default: 0.5,
+		default: DEFAULT_AMOUNT,
 		description: 'Amount',
 	},
 } as const satisfies SequenceSchema;
@@ -19,10 +34,38 @@ export type TintParams = {
 	readonly amount?: number;
 };
 
-const tintDef = defineEffect<TintParams, null>({
+type TintResolved = {
+	color: string;
+	amount: number;
+};
+
+const resolve = (p: TintParams): TintResolved => ({
+	color: p.color,
+	amount: p.amount ?? DEFAULT_AMOUNT,
+});
+
+const validateTintParams = (params: TintParams): void => {
+	assertEffectParamsObject(params, 'Tint');
+	assertRequiredColor(params.color, 'color');
+	assertOptionalFiniteNumber(params.amount, 'amount');
+
+	if (params.amount !== undefined) {
+		validateUnitInterval(params.amount, 'amount');
+	}
+};
+
+// Tints the source with a flat color. `amount` controls the blend strength
+// (0 = no tint, 1 = full color over opaque pixels). Operates on the 2D
+// backend; tinting respects the source's alpha mask.
+export const tint = createEffect<TintParams, null>({
 	type: 'remotion/tint',
-	label: 'Tint',
+	label: 'tint()',
+	documentationLink: 'https://www.remotion.dev/docs/effects/tint',
 	backend: '2d',
+	calculateKey: (params) => {
+		const r = resolve(params);
+		return `tint-${r.color}-${r.amount}`;
+	},
 	setup: () => null,
 	apply: ({source, target, width, height, params}) => {
 		const ctx = target.getContext('2d');
@@ -32,7 +75,8 @@ const tintDef = defineEffect<TintParams, null>({
 			);
 		}
 
-		const amount = Math.max(0, Math.min(1, params.amount ?? 0.5));
+		const r = resolve(params);
+		const amount = Math.max(0, Math.min(1, r.amount));
 
 		ctx.clearRect(0, 0, width, height);
 		ctx.globalAlpha = 1;
@@ -43,7 +87,7 @@ const tintDef = defineEffect<TintParams, null>({
 		// so the tint respects the source's alpha mask.
 		ctx.globalAlpha = amount;
 		ctx.globalCompositeOperation = 'source-atop';
-		ctx.fillStyle = params.color;
+		ctx.fillStyle = r.color;
 		ctx.fillRect(0, 0, width, height);
 
 		ctx.globalAlpha = 1;
@@ -51,10 +95,5 @@ const tintDef = defineEffect<TintParams, null>({
 	},
 	cleanup: () => undefined,
 	schema: tintSchema,
+	validateParams: validateTintParams,
 });
-
-// Tints the source with a flat color. `amount` controls the blend strength
-// (0 = no tint, 1 = full color over opaque pixels). Operates on the 2D
-// backend; tinting respects the source's alpha mask.
-export const tint = (params: TintParams): EffectDescriptor<unknown> =>
-	createDescriptor(tintDef, params);

@@ -1,4 +1,5 @@
-import type {LoopDisplay, TSequence} from 'remotion';
+import {stringifySequenceSubscriptionKey} from '@remotion/studio-shared';
+import type {LoopDisplay, OverrideIdToNodePaths, TSequence} from 'remotion';
 import {
 	getCascadedStart,
 	getTimelineVisibleDuration,
@@ -35,8 +36,10 @@ const getInheritedLoopDisplay = (
 
 export const calculateTimeline = ({
 	sequences,
+	overrideIdsToNodePaths,
 }: {
 	sequences: TSequence[];
+	overrideIdsToNodePaths: OverrideIdToNodePaths;
 }): TrackWithHash[] => {
 	const sortedSequences = sortItemsByNonceHistory(sequences);
 	const tracks: TrackWithHashAndOriginalTimings[] = [];
@@ -77,6 +80,11 @@ export const calculateTimeline = ({
 			sortedSequences,
 		);
 
+		const overrideId = sequence.controls?.overrideId ?? null;
+		const nodePath = overrideId ? overrideIdsToNodePaths[overrideId] : null;
+		const hasKeyframeRows =
+			sequence.controls !== null || sequence.effects.length > 0;
+
 		tracks.push({
 			sequence: {
 				...sequence,
@@ -91,6 +99,17 @@ export const calculateTimeline = ({
 			hash: actualHash,
 			cascadedStart,
 			cascadedDuration: sequence.duration,
+			keyframeDisplayOffset: hasKeyframeRows
+				? cascadedStart - sequence.from
+				: 0,
+			nodePathInfo: nodePath
+				? {
+						sequenceSubscriptionKey: nodePath,
+						auxiliaryKeys: [],
+						index: 0,
+						numberOfSequencesWithThisNodePath: 0,
+					}
+				: null,
 		});
 	}
 
@@ -107,7 +126,7 @@ export const calculateTimeline = ({
 		nonceRanks.set(tracks[i].sequence.id, i);
 	}
 
-	return uniqueTracks.sort((a, b) => {
+	const sortedTracks = uniqueTracks.sort((a, b) => {
 		const sortKeyA = getTimelineSequenceSequenceSortKey(
 			a,
 			tracks,
@@ -122,4 +141,48 @@ export const calculateTimeline = ({
 		);
 		return sortKeyA.localeCompare(sortKeyB);
 	});
+
+	const nodePathIndexCounters = new Map<string, number>();
+
+	return sortedTracks
+		.map((track): TrackWithHash => {
+			if (track.nodePathInfo === null) {
+				return track;
+			}
+
+			const key = stringifySequenceSubscriptionKey(
+				track.nodePathInfo.sequenceSubscriptionKey,
+			);
+			const index = nodePathIndexCounters.get(key) ?? 0;
+			nodePathIndexCounters.set(key, index + 1);
+			return {
+				...track,
+				nodePathInfo: {
+					sequenceSubscriptionKey: track.nodePathInfo.sequenceSubscriptionKey,
+					auxiliaryKeys: track.nodePathInfo.auxiliaryKeys,
+					index,
+					numberOfSequencesWithThisNodePath: 0,
+				},
+			};
+		})
+		.map((track) => {
+			if (track.nodePathInfo === null) {
+				return track;
+			}
+
+			const key = stringifySequenceSubscriptionKey(
+				track.nodePathInfo.sequenceSubscriptionKey,
+			);
+
+			return {
+				...track,
+				nodePathInfo: {
+					sequenceSubscriptionKey: track.nodePathInfo.sequenceSubscriptionKey,
+					auxiliaryKeys: track.nodePathInfo.auxiliaryKeys,
+					index: track.nodePathInfo.index,
+					numberOfSequencesWithThisNodePath:
+						nodePathIndexCounters.get(key) ?? 0,
+				},
+			};
+		});
 };

@@ -29,6 +29,7 @@ import {
 	discriminatedUnionRootSchema,
 } from './DiscriminatedUnionSchemaTest';
 import {DynamicDuration, dynamicDurationSchema} from './DynamicDuration';
+import {EasingVisualizer} from './EasingVisualizer/EasingVisualizer';
 import {EmojiTestbed} from './Emoji';
 import {ErrorOnFrame10} from './ErrorOnFrame10';
 import {ExperimentalControlsShowcase} from './ExperimentalControls';
@@ -37,6 +38,7 @@ import {FontDemo} from './Fonts';
 import {Framer} from './Framer';
 import {FreezeExample} from './Freeze/FreezeExample';
 import {FreezePortion} from './FreezePortion/FreezePortion';
+import {GifEffectsTestbed} from './Gif/GifEffects';
 import {GoogleFontsCjk} from './GoogleFontsCjk/GoogleFontsCjk';
 import {Green} from './Green';
 import {HlsDemo} from './Hls/HlsDemo';
@@ -46,17 +48,33 @@ import {
 	HlsMediaVideoTrimmed,
 } from './Hls/HlsMediaVideo';
 import {
+	BookFlipTransitionDoc,
+	BookFlipTransitionDocThumb,
+	CrossZoomTransitionDoc,
+	CrossZoomTransitionDocThumb,
+	CrosswarpTransitionDoc,
+	CrosswarpTransitionDocThumb,
+	DissolveTransitionDoc,
+	DissolveTransitionDocThumb,
+	FilmBurnTransitionDoc,
+	FilmBurnTransitionDocThumb,
 	HtmlInCanvasComplexText,
 	HtmlInCanvasComposeAsyncBitmap,
 	HtmlInCanvasComposeWebGL,
 	HtmlInCanvasComposeWebGLCrt,
 	HtmlInCanvasComposeWebGPU,
+	HtmlInCanvasDemo,
+	HtmlInCanvasDocsDemo2DBlur,
 	HtmlInCanvasDocsMinimalWebGL,
 	HtmlInCanvasDocsMinimalWebGPU,
-	HtmlInCanvasDocsDemo2DBlur,
-	HtmlInCanvasDemo,
 	HtmlInCanvasPrivacy,
 	HtmlInCanvasReactSvg,
+	LinearBlurTransitionDoc,
+	LinearBlurTransitionDocThumb,
+	RippleTransitionDoc,
+	RippleTransitionDocThumb,
+	SwapTransitionDoc,
+	SwapTransitionDocThumb,
 	ZoomBlurTransitionDoc,
 	ZoomBlurTransitionDocThumb,
 	ZoomInOutTransitionDoc,
@@ -85,6 +103,7 @@ import ReactSvg from './ReactSvg';
 import InfinityVideo from './ReallyLongVideo';
 import RemoteVideo from './RemoteVideo';
 import {RetryDelayRender} from './RetryDelayRender';
+import {RiveEffectsTestbed} from './Rive/RiveEffects';
 import RiveVehicle from './Rive/RiveExample';
 import {ScalePath} from './ScalePath';
 import {SchemaTest, schemaTestSchema} from './SchemaTest';
@@ -110,8 +129,8 @@ import {
 } from './StudioApis/SaveDefaultProps';
 import {TriggerCalculateMetadata} from './StudioApis/TriggerCalculateMetadata';
 import {WriteStaticFile} from './StudioApis/WriteStaticFile';
-import {SubtitleArtifact} from './SubtitleArtifact/SubtitleArtifact';
 import './style.css';
+import {SubtitleArtifact} from './SubtitleArtifact/SubtitleArtifact';
 import {SvgFilter} from './SvgFilter';
 import {Tailwind} from './Tailwind';
 import {TenFrameTester} from './TenFrameTester';
@@ -148,6 +167,7 @@ import {ThreeDCheck} from './3DCheck';
 import {ThreeDContext} from './3DContext';
 import {ThreeDSvgContent} from './3DSvgContent';
 import {AnimatedImages} from './AnimatedImage/Avif';
+import {AnimatedImageEffects} from './AnimatedImage/Effects';
 import {AudioSmoothnessBufferInterruptionComp} from './AudioSmoothness/BufferInterruption';
 import {AudioSmoothnessLoopedAudioComp} from './AudioSmoothness/LoopedAudio';
 import {AudioSmoothnessNewVideoComp} from './AudioSmoothness/NewVideo';
@@ -155,17 +175,22 @@ import {AudioSmoothnessSlicedVideoComp} from './AudioSmoothness/SlicedVideo';
 import {AudioSmoothnessTrimAfterLoopComp} from './AudioSmoothness/TrimAfterLoop';
 import {AudioSmoothnessTrimButtonComp} from './AudioSmoothness/TrimButton';
 import Amplify from './AudioTesting/Amplify';
+import {Issue7568} from './AudioTesting/Issue7568';
 import {BrowserTest} from './BrowserTest';
 import {EdgeBlur} from './EdgeBlur/EdgeBlur';
+import {EffectsTestbed} from './EffectsTestbed/EffectsTestbed';
+import {HalftoneGradient} from './EffectsTestbed/HalftoneGradient';
+import {VideoEffectsFastRefresh} from './EffectsTestbed/VideoEffectsFastRefresh';
 import {Empty} from './Empty';
 import {JumpCuts, SAMPLE_SECTIONS, calculateMetadataJumpCuts} from './JumpCuts';
 import {LightLeakExample} from './LightLeak';
 import {LightLeakAnimatedSize} from './LightLeak/AnimatedSize';
 import {LoopDisplayTestComp} from './LoopDisplayTest';
 import {NewAudioExample} from './NewAudio/NewAudio';
-import {NewVideoComp} from './NewVideo';
+import {NewVideoComp, PremountSequenceVideoComp} from './NewVideo';
 import {ObjectFitTestComp} from './ObjectFitTest';
 import {ChangingTrimBeforeValue} from './OffthreadRemoteVideo/ChangingTrimBefore';
+import {Issue7562OffthreadVideoCuts} from './OffthreadRemoteVideo/Issue7562OffthreadVideoCuts';
 import {LoopedNewVideo} from './OffthreadRemoteVideo/LoopedNewVideo';
 import {LoopedOffthreadRemoteVideo} from './OffthreadRemoteVideo/LoopedOffthreadRemoteVideo';
 import {MultiChannelAudio} from './OffthreadRemoteVideo/MultiChannelAudio';
@@ -174,18 +199,23 @@ import {ParseAndDownloadMedia} from './ParseAndDownloadMedia';
 import {
 	PLAY_RANGES_MEDIA_DEFAULT,
 	PLAY_RANGES_MEDIA_VIDEO_URL_DEFAULT,
+	PLAY_RANGES_MEDIA_ZIP_DEFAULT,
 	PlayRangesMediaVideo,
 	calculateMetadataPlayRangesMedia,
 } from './PlayRangesMediaVideo';
 import {PremountOnTransitionSeries} from './PremountOnTransitionSeries';
 import {PrintProps} from './PrintProps';
 import {SfxExample} from './Sfx';
+import {CanvasImg} from './SimpleImg/CanvasImg';
+import {ImgEffects} from './SimpleImg/ImgEffects';
 import {SmoothTextTransition} from './SmoothTextTransition';
 import {SpringSeason} from './SpringSeason';
 import {StarburstExample} from './Starburst';
 import {Seek} from './StudioApis/Seek';
+import {SubframeAudio} from './SubframeAudio';
 import {TikTokTextBoxPlayground} from './TikTokTextbox/TikTokTextBox';
 import {FitTextOnNLines, fitTextOnNLinesSchema} from './Title/FitTextOnNLines';
+import {Issue7359FitTextOnNLines} from './Title/Issue7359FitTextOnNLines';
 import {TransitionRounding} from './TransitionRounding';
 import {WebGlTransition} from './Transitions/WebGlTransition';
 import {
@@ -328,6 +358,24 @@ export const Index: React.FC = () => {
 
 	return (
 		<>
+			<Folder name="copilot-tests">
+				<Composition
+					id="keyframed-props-test"
+					lazyComponent={() => import('./KeyframedPropsTest')}
+					width={1080}
+					height={1080}
+					fps={30}
+					durationInFrames={120}
+				/>
+				<Composition
+					id="centered-solid"
+					lazyComponent={() => import('./CenteredSolid')}
+					width={1080}
+					height={1080}
+					fps={30}
+					durationInFrames={60}
+				/>
+			</Folder>
 			<Folder name="dynamic-parameters">
 				<Composition
 					id="dynamic-length"
@@ -482,10 +530,36 @@ export const Index: React.FC = () => {
 					durationInFrames={100}
 				/>
 			</Folder>
+			<Folder name="easing">
+				<Composition
+					id="easing-visualizer"
+					component={EasingVisualizer}
+					width={1920}
+					height={1080}
+					fps={30}
+					durationInFrames={210}
+				/>
+			</Folder>
 			<Folder name="regression-testing">
 				<Composition
 					id="simple-img"
 					component={SimpleImg}
+					width={1080}
+					height={1080}
+					fps={30}
+					durationInFrames={10}
+				/>
+				<Composition
+					id="canvas-img"
+					component={CanvasImg}
+					width={1080}
+					height={1080}
+					fps={30}
+					durationInFrames={10}
+				/>
+				<Composition
+					id="img-effects"
+					component={ImgEffects}
 					width={1080}
 					height={1080}
 					fps={30}
@@ -523,7 +597,6 @@ export const Index: React.FC = () => {
 					fps={30}
 					durationInFrames={10}
 				/>
-
 				<Composition
 					id="framer"
 					component={Framer}
@@ -700,6 +773,12 @@ export const Index: React.FC = () => {
 						textAlign: 'right' as const,
 					}}
 				/>
+				<Still
+					id="issue-7359-fit-text-on-n-lines"
+					component={Issue7359FitTextOnNLines}
+					width={1280}
+					height={720}
+				/>
 				<Composition
 					id="beta-text"
 					component={BetaText}
@@ -755,7 +834,7 @@ export const Index: React.FC = () => {
 					component={NewAudioExample}
 					fps={30}
 					defaultProps={{
-						src: staticFile('music.mp3'),
+						src: 'https://remotion.media/music.mp3',
 					}}
 					calculateMetadata={async ({props}) => {
 						const fps = 30;
@@ -881,10 +960,12 @@ export const Index: React.FC = () => {
 				/>
 				<OffthreadRemoteVideo />
 				<NewVideoComp />
+				<PremountSequenceVideoComp />
 				<ObjectFitTestComp />
 				<NewVideoBufferStateComp />
 				<LoopDisplayTestComp />
 				<OffthreadRemoteSeries />
+				<Issue7562OffthreadVideoCuts />
 				<LoopedNewVideo />
 				<LoopedOffthreadRemoteVideo />
 				<MultiChannelAudio />
@@ -962,6 +1043,22 @@ export const Index: React.FC = () => {
 						durationInFrames={120}
 					/>
 					<Composition
+						id="book-flip-transition-doc"
+						component={BookFlipTransitionDoc}
+						fps={30}
+						height={1080}
+						width={1920}
+						durationInFrames={90}
+					/>
+					<Composition
+						id="book-flip-transition-doc-thumb"
+						component={BookFlipTransitionDocThumb}
+						fps={30}
+						height={280}
+						width={540}
+						durationInFrames={60}
+					/>
+					<Composition
 						id="zoom-blur-transition-doc"
 						component={ZoomBlurTransitionDoc}
 						fps={30}
@@ -978,6 +1075,38 @@ export const Index: React.FC = () => {
 						durationInFrames={60}
 					/>
 					<Composition
+						id="film-burn-transition-doc"
+						component={FilmBurnTransitionDoc}
+						fps={30}
+						height={1080}
+						width={1920}
+						durationInFrames={90}
+					/>
+					<Composition
+						id="film-burn-transition-doc-thumb"
+						component={FilmBurnTransitionDocThumb}
+						fps={30}
+						height={280}
+						width={540}
+						durationInFrames={60}
+					/>
+					<Composition
+						id="linear-blur-transition-doc"
+						component={LinearBlurTransitionDoc}
+						fps={30}
+						height={1080}
+						width={1920}
+						durationInFrames={90}
+					/>
+					<Composition
+						id="linear-blur-transition-doc-thumb"
+						component={LinearBlurTransitionDocThumb}
+						fps={30}
+						height={280}
+						width={540}
+						durationInFrames={60}
+					/>
+					<Composition
 						id="zoom-in-out-transition-doc"
 						component={ZoomInOutTransitionDoc}
 						fps={30}
@@ -988,6 +1117,86 @@ export const Index: React.FC = () => {
 					<Composition
 						id="zoom-in-out-transition-doc-thumb"
 						component={ZoomInOutTransitionDocThumb}
+						fps={30}
+						height={280}
+						width={540}
+						durationInFrames={60}
+					/>
+					<Composition
+						id="dissolve-transition-doc"
+						component={DissolveTransitionDoc}
+						fps={30}
+						height={1080}
+						width={1920}
+						durationInFrames={90}
+					/>
+					<Composition
+						id="dissolve-transition-doc-thumb"
+						component={DissolveTransitionDocThumb}
+						fps={30}
+						height={280}
+						width={540}
+						durationInFrames={60}
+					/>
+					<Composition
+						id="ripple-transition-doc"
+						component={RippleTransitionDoc}
+						fps={30}
+						height={1080}
+						width={1920}
+						durationInFrames={90}
+					/>
+					<Composition
+						id="ripple-transition-doc-thumb"
+						component={RippleTransitionDocThumb}
+						fps={30}
+						height={280}
+						width={540}
+						durationInFrames={60}
+					/>
+					<Composition
+						id="crosswarp-transition-doc"
+						component={CrosswarpTransitionDoc}
+						fps={30}
+						height={1080}
+						width={1920}
+						durationInFrames={90}
+					/>
+					<Composition
+						id="crosswarp-transition-doc-thumb"
+						component={CrosswarpTransitionDocThumb}
+						fps={30}
+						height={280}
+						width={540}
+						durationInFrames={60}
+					/>
+					<Composition
+						id="cross-zoom-transition-doc"
+						component={CrossZoomTransitionDoc}
+						fps={30}
+						height={1080}
+						width={1920}
+						durationInFrames={90}
+					/>
+					<Composition
+						id="cross-zoom-transition-doc-thumb"
+						component={CrossZoomTransitionDocThumb}
+						fps={30}
+						height={280}
+						width={540}
+						durationInFrames={60}
+					/>
+					<Composition
+						id="swap-transition-doc"
+						component={SwapTransitionDoc}
+						fps={30}
+						height={1080}
+						width={1920}
+						durationInFrames={90}
+					/>
+					<Composition
+						id="swap-transition-doc-thumb"
+						component={SwapTransitionDocThumb}
 						fps={30}
 						height={280}
 						width={540}
@@ -1073,6 +1282,17 @@ export const Index: React.FC = () => {
 					defaultProps={{
 						url: PLAY_RANGES_MEDIA_VIDEO_URL_DEFAULT,
 						playRanges: PLAY_RANGES_MEDIA_DEFAULT,
+					}}
+				/>
+				<Composition
+					id="play-ranges-media-video-zip"
+					component={PlayRangesMediaVideo}
+					width={480}
+					height={270}
+					calculateMetadata={calculateMetadataPlayRangesMedia}
+					defaultProps={{
+						url: PLAY_RANGES_MEDIA_VIDEO_URL_DEFAULT,
+						playRanges: PLAY_RANGES_MEDIA_ZIP_DEFAULT,
 					}}
 				/>
 				<Composition
@@ -1311,6 +1531,14 @@ export const Index: React.FC = () => {
 					durationInFrames={300}
 				/>
 				<Composition
+					id="audio-issue-7568"
+					component={Issue7568}
+					width={1920}
+					height={1080}
+					fps={30}
+					durationInFrames={120}
+				/>
+				<Composition
 					id="audio-visualization"
 					lazyComponent={() => import('./AudioVisualization')}
 					width={1080}
@@ -1333,6 +1561,14 @@ export const Index: React.FC = () => {
 					height={1080}
 					fps={30}
 					durationInFrames={180 * 30}
+				/>
+				<Composition
+					id="subframe-audio"
+					component={SubframeAudio}
+					width={1080}
+					height={1080}
+					fps={30}
+					durationInFrames={120}
 				/>
 			</Folder>
 			<Folder name="three">
@@ -1628,6 +1864,35 @@ export const Index: React.FC = () => {
 						],
 					}}
 					durationInFrames={150}
+				/>
+			</Folder>
+			<Folder name="Effects">
+				<RiveEffectsTestbed />
+				<GifEffectsTestbed />
+				<AnimatedImageEffects />
+				<Composition
+					id="effects-testbed"
+					component={EffectsTestbed}
+					width={1920}
+					height={1920}
+					fps={30}
+					durationInFrames={300}
+				/>
+				<Composition
+					id="halftone-gradient"
+					component={HalftoneGradient}
+					width={1920}
+					height={1920}
+					fps={30}
+					durationInFrames={300}
+				/>
+				<Composition
+					id="video-effects-fast-refresh"
+					component={VideoEffectsFastRefresh}
+					width={1920}
+					height={1080}
+					fps={30}
+					durationInFrames={300}
 				/>
 			</Folder>
 			<Folder name="Premount">

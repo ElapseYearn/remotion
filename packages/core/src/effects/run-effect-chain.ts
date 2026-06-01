@@ -1,11 +1,17 @@
 import {CanvasPool} from './canvas-pool.js';
-import {flattenEffects, groupByBackend} from './effect-internals.js';
-import type {EffectDefinition, EffectsProp} from './effect-types.js';
+import {groupByBackend} from './effect-internals.js';
+import type {
+	EffectDefinition,
+	EffectDefinitionAndStack,
+} from './effect-types.js';
 import {getGpuDevice} from './gpu-device.js';
 
 export type EffectChainState = {
 	pool: CanvasPool;
-	setupCache: WeakMap<EffectDefinition<unknown, unknown>, unknown>;
+	setupCache: WeakMap<
+		EffectDefinition<unknown, unknown>,
+		WeakMap<HTMLCanvasElement, unknown>
+	>;
 	cleanupRegistry: Array<{
 		definition: EffectDefinition<unknown, unknown>;
 		state: unknown;
@@ -36,22 +42,30 @@ const ensureSetup = <S>(
 	target: HTMLCanvasElement,
 ): S => {
 	const widened = def as EffectDefinition<unknown, unknown>;
-	if (state.setupCache.has(widened)) {
-		return state.setupCache.get(widened) as S;
+	let cacheForDefinition = state.setupCache.get(widened);
+	if (!cacheForDefinition) {
+		cacheForDefinition = new WeakMap<HTMLCanvasElement, unknown>();
+		state.setupCache.set(widened, cacheForDefinition);
+	}
+
+	if (cacheForDefinition.has(target)) {
+		return cacheForDefinition.get(target) as S;
 	}
 
 	const setupState = def.setup(target);
-	state.setupCache.set(widened, setupState);
+	cacheForDefinition.set(target, setupState);
 	state.cleanupRegistry.push({definition: widened, state: setupState});
 	return setupState;
 };
 
+/** Final compositing target for an effect chain (layout canvas or transferred offscreen). */
+export type EffectChainOutput = HTMLCanvasElement | OffscreenCanvas;
+
 export type RunEffectChainOptions = {
 	readonly state: EffectChainState;
 	readonly source: CanvasImageSource;
-	readonly effects: EffectsProp;
-	readonly output: HTMLCanvasElement;
-	readonly frame: number;
+	readonly effects: EffectDefinitionAndStack<unknown>[];
+	readonly output: EffectChainOutput;
 	readonly width: number;
 	readonly height: number;
 };
@@ -64,15 +78,20 @@ export const runEffectChain = async ({
 	source,
 	effects,
 	output,
-	frame,
 	width,
 	height,
 }: RunEffectChainOptions): Promise<boolean> => {
 	const runId = ++state.currentRunId;
 	const isCancelled = () => state.currentRunId !== runId;
 
-	const flattened = flattenEffects(effects);
-	const runs = groupByBackend(flattened);
+	// Bypass any effect with `disabled: true` before grouping by backend, so
+	// disabled effects don't create empty runs or force unnecessary backend
+	// transitions. The `disabled` flag is injected by `createEffect` and lives
+	// on `params` so it flows through code/drag override merging.
+	const enabledEffects = effects.filter(
+		(e) => !(e.params as {disabled?: boolean}).disabled,
+	);
+	const runs = groupByBackend(enabledEffects);
 
 	let currentImage: CanvasImageSource = source;
 	let lastTarget: HTMLCanvasElement | null = null;
@@ -107,6 +126,11 @@ export const runEffectChain = async ({
 		return false;
 	}
 
+	// Canvas sources are DOM-oriented. Flip them when uploading into WebGL so
+	// texture coordinates match clip-space output. `ImageBitmap` bridges below
+	// opt out because they are already oriented for upload.
+	let flipWebGLSourceY = true;
+
 	for (let runIndex = 0; runIndex < runs.length; runIndex++) {
 		const run = runs[runIndex];
 		const [a, b] = state.pool.getPair(run.backend);
@@ -121,13 +145,17 @@ export const runEffectChain = async ({
 				target: dst,
 				state: setupState,
 				params: eff.params,
-				frame,
 				width,
 				height,
 				gpuDevice,
+				flipSourceY: run.backend === 'webgl2' ? flipWebGLSourceY : false,
 			});
 
 			if (run.backend === 'webgl2') {
+				// Same-backend ping-pong passes feed the previous WebGL canvas back
+				// through `texImage2D()`. That source is still a DOM canvas, so the
+				// next upload also needs to be flipped.
+				flipWebGLSourceY = true;
 				state.pool.assertContextNotLost(dst);
 			}
 
@@ -139,20 +167,29 @@ export const runEffectChain = async ({
 
 		const nextRun = runs[runIndex + 1];
 		if (nextRun && nextRun.backend !== run.backend && lastTarget) {
-			// Bridge between backend groups via `createImageBitmap` rather than
-			// passing the canvas straight through. A direct `drawImage(webglCanvas)`
-			// in the next backend's first effect forces an implicit GPU readback /
-			// finish on the consuming context, which empirically blows the per-frame
-			// vsync budget and halves the paint rate. `createImageBitmap` performs
-			// the same handoff but pipelines the GPU work, so the next effect reads
-			// from a ready-to-sample bitmap without stalling.
-			const bitmap = await createImageBitmap(lastTarget);
-			if (isCancelled()) {
-				bitmap.close();
-				return false;
-			}
+			// 2D → WebGL: pass the 2D canvas directly so `texImage2D` + `UNPACK_FLIP_Y`
+			// matches blur-only on a raw frame canvas. `createImageBitmap` here changes
+			// upload orientation and produced upside-down stacks (wave + blur).
+			if (run.backend === '2d' && nextRun.backend === 'webgl2') {
+				currentImage = lastTarget;
+				flipWebGLSourceY = true;
+			} else {
+				// Other bridges use `createImageBitmap` rather than passing the canvas
+				// straight through. A direct `drawImage(webglCanvas)` in the next
+				// backend's first effect forces an implicit GPU readback / finish on the
+				// consuming context, which empirically blows the per-frame vsync budget and
+				// halves the paint rate. `createImageBitmap` pipelines the GPU work.
+				const bitmap = await createImageBitmap(lastTarget);
+				if (isCancelled()) {
+					bitmap.close();
+					return false;
+				}
 
-			currentImage = bitmap;
+				currentImage = bitmap;
+				if (nextRun.backend === 'webgl2') {
+					flipWebGLSourceY = false;
+				}
+			}
 		}
 	}
 

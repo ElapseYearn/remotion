@@ -1,3 +1,7 @@
+export type HiddenFieldSchema = {
+	type: 'hidden';
+};
+
 export type NumberFieldSchema = {
 	type: 'number';
 	min?: number;
@@ -27,6 +31,21 @@ export type TranslateFieldSchema = {
 	description?: string;
 };
 
+export type UvCoordinateFieldSchema = {
+	type: 'uv-coordinate';
+	min?: number;
+	max?: number;
+	step?: number;
+	default: readonly [number, number] | undefined;
+	description?: string;
+};
+
+export type ColorFieldSchema = {
+	type: 'color';
+	default: string | undefined;
+	description?: string;
+};
+
 export type EnumFieldSchema = {
 	type: 'enum';
 	default: string;
@@ -34,12 +53,16 @@ export type EnumFieldSchema = {
 	variants: Record<string, SequenceSchema>;
 };
 
-export type SequenceFieldSchema =
+export type VisibleFieldSchema =
 	| NumberFieldSchema
 	| BooleanFieldSchema
 	| RotationFieldSchema
 	| TranslateFieldSchema
+	| UvCoordinateFieldSchema
+	| ColorFieldSchema
 	| EnumFieldSchema;
+
+export type SequenceFieldSchema = VisibleFieldSchema | HiddenFieldSchema;
 
 export type SequenceSchema = {[key: string]: SequenceFieldSchema};
 
@@ -48,7 +71,7 @@ export type SchemaKeysRecord<S extends SequenceSchema> = Record<
 	unknown
 >;
 
-export const sequenceStyleSchema = {
+export const sequenceVisualStyleSchema = {
 	'style.translate': {
 		type: 'translate',
 		step: 1,
@@ -79,7 +102,38 @@ export const sequenceStyleSchema = {
 	},
 } as const satisfies SequenceSchema;
 
+export const sequencePremountSchema = {
+	premountFor: {
+		type: 'number',
+		default: 0,
+		description: 'Premount For',
+		min: 0,
+		step: 1,
+	},
+	postmountFor: {
+		type: 'hidden',
+	},
+	styleWhilePremounted: {
+		type: 'hidden',
+	},
+	styleWhilePostmounted: {
+		type: 'hidden',
+	},
+} as const satisfies SequenceSchema;
+
+export const sequenceStyleSchema = {
+	...sequenceVisualStyleSchema,
+	...sequencePremountSchema,
+} as const satisfies SequenceSchema;
+
+export const hiddenField: SequenceFieldSchema = {
+	type: 'boolean',
+	default: false,
+	description: 'Hidden',
+};
+
 export const sequenceSchema = {
+	hidden: hiddenField,
 	layout: {
 		type: 'enum',
 		default: 'absolute-fill',

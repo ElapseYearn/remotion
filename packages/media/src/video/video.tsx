@@ -1,11 +1,12 @@
-import {useMemo, useState} from 'react';
-import React from 'react';
+import React, {useMemo, useState} from 'react';
 import {
+	Internals,
+	Sequence,
+	useRemotionEnvironment,
 	useVideoConfig,
 	type SequenceControls,
 	type SequenceSchema,
 } from 'remotion';
-import {Internals, Sequence, useRemotionEnvironment} from 'remotion';
 import {getLoopDisplay} from '../show-in-timeline';
 import type {InnerVideoProps, VideoProps} from './props';
 import {VideoForPreview} from './video-for-preview';
@@ -30,14 +31,20 @@ const videoSchema = {
 		default: 1,
 		description: 'Playback Rate',
 	},
+	hidden: {
+		type: 'boolean',
+		default: false,
+		description: 'Hidden',
+	},
 	loop: {type: 'boolean', default: false, description: 'Loop'},
-	...Internals.sequenceStyleSchema,
+	...Internals.sequenceVisualStyleSchema,
 } as const satisfies SequenceSchema;
 
 const InnerVideo: React.FC<
 	InnerVideoProps & {
 		readonly _experimentalControls: SequenceControls | undefined;
 		readonly setMediaDurationInSeconds: (durationInSeconds: number) => void;
+		readonly refForOutline: React.RefObject<HTMLElement | null>;
 	}
 > = ({
 	src,
@@ -64,11 +71,13 @@ const InnerVideo: React.FC<
 	headless,
 	onError,
 	credentials,
+	requestInit,
 	_experimentalControls: controls,
 	objectFit,
 	_experimentalInitiallyDrawCachedFrame,
-	_experimentalEffects,
+	effects,
 	setMediaDurationInSeconds,
+	refForOutline,
 }) => {
 	const environment = useRemotionEnvironment();
 
@@ -125,7 +134,9 @@ const InnerVideo: React.FC<
 				headless={headless}
 				onError={onError}
 				credentials={credentials}
+				requestInit={requestInit}
 				objectFit={objectFit}
+				effects={effects}
 			/>
 		);
 	}
@@ -154,12 +165,14 @@ const InnerVideo: React.FC<
 			headless={headless ?? false}
 			onError={onError}
 			credentials={credentials}
+			requestInit={requestInit}
 			controls={controls}
 			objectFit={objectFit}
-			_experimentalEffects={_experimentalEffects}
+			effects={effects}
 			_experimentalInitiallyDrawCachedFrame={
 				_experimentalInitiallyDrawCachedFrame
 			}
+			refForOutline={refForOutline}
 		/>
 	);
 };
@@ -194,12 +207,14 @@ const VideoInner: React.FC<
 	headless,
 	onError,
 	credentials,
+	requestInit,
 	_experimentalControls: controls,
 	objectFit,
 	_experimentalInitiallyDrawCachedFrame,
-	_experimentalEffects,
+	effects,
 	durationInFrames,
 	from,
+	hidden,
 }) => {
 	const fallbackLogLevel = Internals.useLogLevel();
 	const [mediaVolume] = Internals.useMediaVolumeState();
@@ -259,6 +274,15 @@ const VideoInner: React.FC<
 		[basicInfo],
 	);
 
+	const memoizedEffects = Internals.useMemoizedEffects({
+		effects: effects ?? [],
+		overrideId: controls?.overrideId ?? null,
+	});
+	const memoizedEffectDefinitions = Internals.useMemoizedEffectDefinitions(
+		effects ?? [],
+	);
+	const refForOutline = React.useRef<HTMLElement | null>(null);
+
 	if (sequenceDurationInFrames === 0) {
 		return null;
 	}
@@ -271,9 +295,17 @@ const VideoInner: React.FC<
 			_remotionInternalStack={stack}
 			_remotionInternalIsMedia={isMedia}
 			name={name ?? '<Video>'}
+			_remotionInternalDocumentationLink={
+				name === undefined
+					? 'https://www.remotion.dev/docs/media/video'
+					: undefined
+			}
 			_experimentalControls={controls}
 			_remotionInternalLoopDisplay={loopDisplay}
+			_remotionInternalEffects={memoizedEffectDefinitions}
+			_remotionInternalRefForOutline={refForOutline}
 			showInTimeline={showInTimeline ?? true}
+			hidden={hidden}
 		>
 			<InnerVideo
 				audioStreamIndex={audioStreamIndex ?? 0}
@@ -304,13 +336,15 @@ const VideoInner: React.FC<
 				headless={headless ?? false}
 				onError={onError}
 				credentials={credentials}
+				requestInit={requestInit}
 				_experimentalControls={controls}
 				objectFit={objectFit ?? 'contain'}
 				_experimentalInitiallyDrawCachedFrame={
 					_experimentalInitiallyDrawCachedFrame ?? false
 				}
-				_experimentalEffects={_experimentalEffects ?? []}
+				effects={memoizedEffects}
 				setMediaDurationInSeconds={setMediaDurationInSeconds}
+				refForOutline={refForOutline}
 			/>
 		</Sequence>
 	);

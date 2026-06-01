@@ -1,6 +1,10 @@
 import type {InputVideoTrack, WrappedCanvas} from 'mediabunny';
 import {CanvasSink} from 'mediabunny';
-import type {EffectChainState, EffectsProp, LogLevel} from 'remotion';
+import type {
+	EffectChainState,
+	EffectDefinitionAndStack,
+	LogLevel,
+} from 'remotion';
 import {Internals} from 'remotion';
 import type {DelayPlaybackIfNotPremounting} from './delay-playback-if-not-premounting';
 import type {Nonce} from './nonce-manager';
@@ -25,7 +29,6 @@ export const videoIteratorManager = async ({
 	getIsLooping,
 	getEffects,
 	getEffectChainState,
-	getCurrentFrame,
 }: {
 	videoTrack: InputVideoTrack;
 	delayPlaybackHandleIfNotPremounting: () => DelayPlaybackIfNotPremounting;
@@ -37,17 +40,21 @@ export const videoIteratorManager = async ({
 	getLoopSegmentMediaEndTimestamp: () => number;
 	getStartTime: () => number;
 	getIsLooping: () => boolean;
-	getEffects: () => EffectsProp;
+	getEffects: () => EffectDefinitionAndStack<unknown>[];
 	getEffectChainState: (
 		width: number,
 		height: number,
 	) => EffectChainState | null;
-	getCurrentFrame: () => number;
 }) => {
 	let videoIteratorsCreated = 0;
 	let videoFrameIterator: VideoIterator | null = null;
 	let framesRendered = 0;
 	let currentDelayHandle: {unblock: () => void} | null = null;
+	let lastDrawnFrame: WrappedCanvas | null = null;
+
+	const clearLastDrawnFrame = () => {
+		lastDrawnFrame = null;
+	};
 
 	if (canvas) {
 		const displayWidth = await videoTrack.getDisplayWidth();
@@ -67,7 +74,7 @@ export const videoIteratorManager = async ({
 	const prewarmedVideoIteratorCache =
 		makePrewarmedVideoIteratorCache(canvasSink);
 
-	const drawFrame = async (frame: WrappedCanvas): Promise<void> => {
+	const paintFrame = async (frame: WrappedCanvas): Promise<void> => {
 		if (context && canvas) {
 			const effects = getEffects();
 			const chainState = getEffectChainState(canvas.width, canvas.height);
@@ -81,7 +88,6 @@ export const videoIteratorManager = async ({
 					source: frame.canvas,
 					effects,
 					output: canvas,
-					frame: getCurrentFrame(),
 					width: canvas.width,
 					height: canvas.height,
 				});
@@ -90,6 +96,11 @@ export const videoIteratorManager = async ({
 				context.drawImage(frame.canvas, 0, 0);
 			}
 		}
+	};
+
+	const drawFrame = async (frame: WrappedCanvas): Promise<void> => {
+		await paintFrame(frame);
+		lastDrawnFrame = frame;
 
 		framesRendered++;
 
@@ -105,10 +116,30 @@ export const videoIteratorManager = async ({
 		);
 	};
 
+	const redrawCurrentFrame = async (): Promise<void> => {
+		if (!lastDrawnFrame) {
+			return;
+		}
+
+		await paintFrame(lastDrawnFrame);
+
+		drawDebugOverlay();
+		const callback = getOnVideoFrameCallback();
+		if (callback) {
+			callback(lastDrawnFrame.canvas);
+		}
+
+		Internals.Log.trace(
+			{logLevel, tag: '@remotion/media'},
+			`[MediaPlayer] Redrew frame ${lastDrawnFrame.timestamp.toFixed(3)}s with updated effects`,
+		);
+	};
+
 	const startVideoIterator = async (
 		timeToSeek: number,
 		nonce: Nonce,
 	): Promise<void> => {
+		clearLastDrawnFrame();
 		videoFrameIterator?.destroy();
 		using delayHandle = delayPlaybackHandleIfNotPremounting();
 		currentDelayHandle = delayHandle;
@@ -176,6 +207,7 @@ export const videoIteratorManager = async ({
 		getVideoIteratorsCreated: () => videoIteratorsCreated,
 		seek,
 		destroy: () => {
+			clearLastDrawnFrame();
 			prewarmedVideoIteratorCache.destroy();
 			videoFrameIterator?.destroy();
 			if (context && canvas) {
@@ -191,6 +223,7 @@ export const videoIteratorManager = async ({
 		},
 		getVideoFrameIterator: () => videoFrameIterator,
 		drawFrame,
+		redrawCurrentFrame,
 		getFramesRendered: () => framesRendered,
 	};
 };

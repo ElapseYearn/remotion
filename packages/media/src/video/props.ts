@@ -1,12 +1,14 @@
 import type {
+	EffectDefinitionAndStack,
+	EffectsProp,
 	LogLevel,
 	LoopVolumeCurveBehavior,
 	OnVideoFrame,
 	SequenceProps,
 	VolumeProp,
 } from 'remotion';
-import type {EffectsProp} from 'remotion';
 import type {MediaOnError} from '../on-error';
+import type {MediaRequestInit} from '../request-init';
 
 export type MediaErrorEvent = {
 	error: Error;
@@ -28,6 +30,7 @@ export type FallbackOffthreadVideoProps = {
 	useWebAudioApi?: boolean;
 	pauseWhenBuffering?: boolean;
 	onAutoPlayError?: null | (() => void);
+	preservePitch?: boolean;
 };
 
 type MandatoryVideoProps = {
@@ -65,17 +68,24 @@ type OptionalVideoProps = {
 	debugOverlay: boolean;
 	headless: boolean;
 	onError: MediaOnError | undefined;
+	/**
+	 * @deprecated Use `requestInit={{credentials: ...}}` instead. If both are
+	 * passed, `requestInit.credentials` wins over this prop.
+	 */
 	credentials: RequestCredentials | undefined;
+	requestInit: MediaRequestInit | undefined;
 	objectFit: VideoObjectFit;
 	_experimentalInitiallyDrawCachedFrame: boolean;
-	_experimentalEffects: EffectsProp;
+	effects: EffectsProp;
 };
 
 export type InnerVideoProps = MandatoryVideoProps &
 	OuterVideoProps &
-	OptionalVideoProps;
+	Omit<OptionalVideoProps, 'effects'> & {
+		effects: EffectDefinitionAndStack<unknown>[];
+	};
 
 export type VideoProps = MandatoryVideoProps &
 	Partial<OuterVideoProps> &
 	Partial<OptionalVideoProps> &
-	Pick<SequenceProps, 'durationInFrames' | 'from' | 'name'>;
+	Pick<SequenceProps, 'durationInFrames' | 'from' | 'name' | 'hidden'>;

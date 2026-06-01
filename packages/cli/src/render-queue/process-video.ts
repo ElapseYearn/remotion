@@ -11,7 +11,6 @@ const {
 	publicDirOption,
 	askAIOption,
 	experimentalClientSideRenderingOption,
-	experimentalVisualModeOption,
 	keyboardShortcutsOption,
 	rspackOption,
 	browserExecutableOption,
@@ -101,6 +100,7 @@ export const processVideoJob = async ({
 		uiImageFormat: job.imageFormat,
 		cancelSignal: job.cancelToken.cancelSignal,
 		crf: job.type === 'video' ? job.crf : null,
+		gopSize: job.type === 'video' ? job.gopSize : null,
 		ffmpegOverride,
 		audioBitrate: job.type === 'video' ? job.audioBitrate : null,
 		muted: job.type === 'video' ? job.muted : true,
@@ -136,9 +136,6 @@ export const processVideoJob = async ({
 		experimentalClientSideRenderingEnabled:
 			experimentalClientSideRenderingOption.getValue({commandLine: parsedCli})
 				.value,
-		experimentalVisualModeEnabled: experimentalVisualModeOption.getValue({
-			commandLine: parsedCli,
-		}).value,
 		keyboardShortcutsEnabled,
 		rspack,
 		shouldCache,

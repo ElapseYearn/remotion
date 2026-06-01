@@ -1,29 +1,28 @@
-import React, {useCallback} from 'react';
-import type {SchemaFieldInfo} from '../../helpers/timeline-layout';
+import React, {useCallback, useMemo} from 'react';
+import type {CanUpdateSequencePropStatus} from 'remotion';
+import type {
+	SchemaFieldInfo,
+	TimelineFieldOnDragValueChange,
+	TimelineFieldOnSave,
+} from '../../helpers/timeline-layout';
+import type {ComboboxValue} from '../NewComposition/ComboBox';
+import {Combobox} from '../NewComposition/ComboBox';
 
-const selectStyle: React.CSSProperties = {
+const comboboxStyle: React.CSSProperties = {
 	marginLeft: 8,
-	background: 'transparent',
-	color: 'white',
-	border: '1px solid rgba(255, 255, 255, 0.2)',
-	borderRadius: 3,
-	fontSize: 12,
-	padding: '1px 4px',
 };
 
 export const TimelineEnumField: React.FC<{
 	readonly field: SchemaFieldInfo;
-	readonly codeValue: unknown;
+	readonly propStatus: CanUpdateSequencePropStatus;
 	readonly effectiveValue: unknown;
-	readonly canUpdate: boolean;
-	readonly onSave: (key: string, value: unknown) => Promise<void>;
-	readonly onDragValueChange: (key: string, value: unknown) => void;
+	readonly onSave: TimelineFieldOnSave;
+	readonly onDragValueChange: TimelineFieldOnDragValueChange;
 	readonly onDragEnd: () => void;
 }> = ({
 	field,
-	codeValue,
+	propStatus,
 	effectiveValue,
-	canUpdate,
 	onSave,
 	onDragValueChange,
 	onDragEnd,
@@ -36,33 +35,42 @@ export const TimelineEnumField: React.FC<{
 	const variantKeys = Object.keys(fieldSchema.variants);
 	const current = String(effectiveValue ?? fieldSchema.default);
 
-	const onChange = useCallback(
-		(e: React.ChangeEvent<HTMLSelectElement>) => {
-			const newValue = e.target.value;
-			if (!canUpdate || newValue === codeValue) {
+	const onSelect = useCallback(
+		(newValue: string) => {
+			if (!propStatus.canUpdate || newValue === propStatus.codeValue) {
 				return;
 			}
 
-			onDragValueChange(field.key, newValue);
-			onSave(field.key, newValue).finally(() => {
+			onDragValueChange(newValue);
+			onSave(newValue).finally(() => {
 				onDragEnd();
 			});
 		},
-		[canUpdate, codeValue, field.key, onSave, onDragValueChange, onDragEnd],
+		[propStatus, onSave, onDragValueChange, onDragEnd],
 	);
 
+	const items = useMemo<ComboboxValue[]>(() => {
+		return variantKeys.map((key) => ({
+			type: 'item',
+			id: key,
+			value: key,
+			label: key,
+			onClick: () => onSelect(key),
+			keyHint: null,
+			leftItem: null,
+			subMenu: null,
+			quickSwitcherLabel: null,
+			disabled: !propStatus.canUpdate,
+		}));
+	}, [variantKeys, onSelect, propStatus]);
+
 	return (
-		<select
-			disabled={!canUpdate}
-			value={current}
-			onChange={onChange}
-			style={selectStyle}
-		>
-			{variantKeys.map((key) => (
-				<option key={key} value={key}>
-					{key}
-				</option>
-			))}
-		</select>
+		<Combobox
+			small
+			title={field.key}
+			selectedId={current}
+			values={items}
+			style={comboboxStyle}
+		/>
 	);
 };

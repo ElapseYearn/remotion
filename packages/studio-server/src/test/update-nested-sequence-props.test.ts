@@ -1,6 +1,6 @@
 import {expect, test} from 'bun:test';
-import {Internals} from 'remotion';
-import {updateSequenceProps} from '../codemods/update-sequence-props';
+import {NoReactInternals} from 'remotion/no-react';
+import {updateSequenceProps} from '../codemods/update-sequence-props/update-sequence-props';
 import {lineColumnToNodePath} from './test-utils';
 
 const nestedInput = `import React from 'react';
@@ -21,7 +21,8 @@ test('updateSequenceProps should update a nested style property', async () => {
 		input: nestedInput,
 		nodePath: lineColumnToNodePath(nestedInput, 7),
 		updates: [{key: 'style.opacity', value: 0.8, defaultValue: null}],
-		schema: Internals.sequenceSchema,
+		schema: NoReactInternals.sequenceSchema,
+		prettierConfigOverride: null,
 	});
 	const oldValueString = oldValueStrings[0];
 
@@ -35,7 +36,8 @@ test('updateSequenceProps should add a nested property to existing object', asyn
 		input: nestedInput,
 		nodePath: lineColumnToNodePath(nestedInput, 7),
 		updates: [{key: 'style.rotate', value: 45, defaultValue: null}],
-		schema: Internals.sequenceSchema,
+		schema: NoReactInternals.sequenceSchema,
+		prettierConfigOverride: null,
 	});
 	const oldValueString = oldValueStrings[0];
 
@@ -51,7 +53,8 @@ test('updateSequenceProps should create style attribute when it does not exist',
 		input: nestedInput,
 		nodePath: lineColumnToNodePath(nestedInput, 8),
 		updates: [{key: 'style.opacity', value: 0.3, defaultValue: null}],
-		schema: Internals.sequenceSchema,
+		schema: NoReactInternals.sequenceSchema,
+		prettierConfigOverride: null,
 	});
 	const oldValueString = oldValueStrings[0];
 
@@ -65,7 +68,8 @@ test('updateSequenceProps should remove nested property when value equals defaul
 		input: nestedInput,
 		nodePath: lineColumnToNodePath(nestedInput, 7),
 		updates: [{key: 'style.opacity', value: 1, defaultValue: 1}],
-		schema: Internals.sequenceSchema,
+		schema: NoReactInternals.sequenceSchema,
+		prettierConfigOverride: null,
 	});
 	const oldValueString = oldValueStrings[0];
 
@@ -88,7 +92,8 @@ export const Example: React.FC = () => {
 		input: singlePropInput,
 		nodePath: lineColumnToNodePath(singlePropInput, 4),
 		updates: [{key: 'style.opacity', value: 1, defaultValue: 1}],
-		schema: Internals.sequenceSchema,
+		schema: NoReactInternals.sequenceSchema,
+		prettierConfigOverride: null,
 	});
 	const oldValueString = oldValueStrings[0];
 
@@ -101,7 +106,8 @@ test('updateSequenceProps should report default as oldValueString for missing ne
 		input: nestedInput,
 		nodePath: lineColumnToNodePath(nestedInput, 8),
 		updates: [{key: 'style.opacity', value: 0.5, defaultValue: 1}],
-		schema: Internals.sequenceSchema,
+		schema: NoReactInternals.sequenceSchema,
+		prettierConfigOverride: null,
 	});
 	const oldValueString = oldValueStrings[0];
 

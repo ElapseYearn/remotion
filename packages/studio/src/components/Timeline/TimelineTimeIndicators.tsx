@@ -11,7 +11,6 @@ import {
 	TIMELINE_PADDING,
 } from '../../helpers/timeline-layout';
 import {renderFrame} from '../../state/render-frame';
-import {SPLITTER_HANDLE_SIZE} from '../Splitter/SplitterHandle';
 import {TimeValue} from '../TimeValue';
 import {timelineVerticalScroll} from './timeline-refs';
 import {getFrameIncrementFromWidth} from './timeline-scroll-logic';
@@ -20,8 +19,7 @@ import {TimelineWidthContext} from './TimelineWidthProvider';
 export const TIMELINE_TIME_INDICATOR_HEIGHT = 39;
 
 const container: React.CSSProperties = {
-	height: TIMELINE_TIME_INDICATOR_HEIGHT - 4,
-	boxShadow: `0 0 4px ${TIMELINE_BACKGROUND}`,
+	height: TIMELINE_TIME_INDICATOR_HEIGHT,
 	position: 'absolute',
 	backgroundColor: TIMELINE_BACKGROUND,
 	top: 0,
@@ -99,7 +97,7 @@ export const TimelineTimeIndicators: React.FC = () => {
 	}
 
 	return (
-		<Inner
+		<TimelineTimeIndicatorsInner
 			durationInFrames={video.durationInFrames}
 			fps={video.fps}
 			windowWidth={sliderTrack}
@@ -107,7 +105,7 @@ export const TimelineTimeIndicators: React.FC = () => {
 	);
 };
 
-const Inner: React.FC<{
+const TimelineTimeIndicatorsInner: React.FC<{
 	readonly windowWidth: number;
 	readonly fps: number;
 	readonly durationInFrames: number;
@@ -138,10 +136,8 @@ const Inner: React.FC<{
 	const style: React.CSSProperties = useMemo(() => {
 		return {
 			...container,
-			width: windowWidth - SPLITTER_HANDLE_SIZE / 2,
+			width: windowWidth,
 			overflow: 'hidden',
-			// Since
-			marginLeft: SPLITTER_HANDLE_SIZE / 2,
 			pointerEvents: 'none',
 		};
 	}, [windowWidth]);
@@ -176,10 +172,7 @@ const Inner: React.FC<{
 					frame: index * fps,
 					style: {
 						...secondTick,
-						left:
-							frameInterval * index * fps +
-							TIMELINE_PADDING -
-							SPLITTER_HANDLE_SIZE / 2,
+						left: frameInterval * index * fps + TIMELINE_PADDING,
 					},
 					showTime: index > 0,
 				};
@@ -193,10 +186,7 @@ const Inner: React.FC<{
 					frame: index,
 					style: {
 						...tick,
-						left:
-							frameInterval * index +
-							TIMELINE_PADDING -
-							SPLITTER_HANDLE_SIZE / 2,
+						left: frameInterval * index + TIMELINE_PADDING,
 						height:
 							index % fps === 0
 								? 10

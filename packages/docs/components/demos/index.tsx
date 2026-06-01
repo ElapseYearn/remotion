@@ -3,31 +3,38 @@ import {Player} from '@remotion/player';
 import React, {useCallback, useMemo, useState} from 'react';
 import {AbsoluteFill} from 'remotion';
 import {Control} from './control';
-import type {DemoType} from './types';
+import type {DemoType, Option} from './types';
 import {
-	htmlInCanvasDemo2DBlur,
-	htmlInCanvasDemoWebGL,
-	htmlInCanvasDemoWebGPU,
 	animationMathDemo,
 	arrowDemo,
+	bookFlipPresentationDemo,
 	circleDemo,
 	clockWipePresentationDemo,
+	crosswarpPresentationDemo,
+	crossZoomPresentationDemo,
 	cubePresentationDemo,
 	customPresentationDemo,
 	customTimingDemo,
+	dissolvePresentationDemo,
+	dreamyZoomPresentationDemo,
 	ellipseDemo,
 	fadePresentationDemo,
+	filmBurnPresentationDemo,
 	flipPresentationDemo,
 	heartDemo,
+	htmlInCanvasDemo2DBlur,
+	htmlInCanvasDemoWebGL,
+	htmlInCanvasDemoWebGPU,
 	irisPresentationDemo,
 	lightLeakDemo,
-	starburstDemo,
+	linearBlurPresentationDemo,
 	noiseDemo,
 	nonePresentationDemo,
 	opacityDemo,
 	pieDemo,
 	polygonDemo,
 	rectDemo,
+	ripplePresentationDemo,
 	rotateDemo,
 	roundedTextBoxDemo,
 	scaleDemo,
@@ -37,7 +44,9 @@ import {
 	slidePresentationDemoLongThreshold,
 	springDampingDemo,
 	springDemo,
+	starburstDemo,
 	starDemo,
+	swapPresentationDemo,
 	transitionSeriesEnterExitDemo,
 	transitionSeriesOverlayDemo,
 	transitionSeriesTransitionDemo,
@@ -97,9 +106,29 @@ const demos: DemoType[] = [
 	transitionSeriesTransitionDemo,
 	transitionSeriesOverlayDemo,
 	transitionSeriesEnterExitDemo,
+	bookFlipPresentationDemo,
 	zoomBlurPresentationDemo,
+	dreamyZoomPresentationDemo,
+	filmBurnPresentationDemo,
+	linearBlurPresentationDemo,
 	zoomInOutPresentationDemo,
+	dissolvePresentationDemo,
+	ripplePresentationDemo,
+	crosswarpPresentationDemo,
+	crossZoomPresentationDemo,
+	swapPresentationDemo,
 ];
+
+const shouldShowOption = (
+	option: Option,
+	state: Record<string, unknown>,
+): boolean => {
+	if (!option.showIf) {
+		return true;
+	}
+
+	return state[option.showIf.option] === option.showIf.value;
+};
 
 export const Demo: React.FC<{
 	readonly type: string;
@@ -157,6 +186,7 @@ export const Demo: React.FC<{
 							? '1px solid var(--ifm-color-emphasis-300)'
 							: 0,
 				}}
+				logLevel={demo.logLevel}
 				errorFallback={({error}) => {
 					return (
 						<AbsoluteFill
@@ -189,21 +219,23 @@ export const Demo: React.FC<{
 				loop
 			/>
 			<div className={styles.containerrow}>
-				{demo.options.map((option) => {
-					return (
-						<Control
-							key={option.name}
-							option={option}
-							value={state[option.name]}
-							setValue={(value) => {
-								setState((s) => ({
-									...s,
-									[option.name]: value,
-								}));
-							}}
-						/>
-					);
-				})}
+				{demo.options
+					.filter((option) => shouldShowOption(option, state))
+					.map((option) => {
+						return (
+							<Control
+								key={option.name}
+								option={option}
+								value={state[option.name]}
+								setValue={(value) => {
+									setState((s) => ({
+										...s,
+										[option.name]: value,
+									}));
+								}}
+							/>
+						);
+					})}
 			</div>
 		</div>
 	);

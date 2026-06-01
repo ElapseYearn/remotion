@@ -1,12 +1,13 @@
-import {type AudioHTMLAttributes} from 'react';
 import React, {
 	createContext,
 	createRef,
 	useCallback,
 	useContext,
+	useEffect,
 	useMemo,
 	useRef,
 	useState,
+	type AudioHTMLAttributes,
 } from 'react';
 import {useLogLevel, useMountTime} from '../log-level-context.js';
 import {Log} from '../log.js';
@@ -14,6 +15,7 @@ import {playAndHandleNotAllowedError} from '../play-and-handle-not-allowed-error
 import {useRemotionEnvironment} from '../use-remotion-environment.js';
 import type {SharedElementSourceNode} from './shared-element-source-node.js';
 import {makeSharedElementSourceNode} from './shared-element-source-node.js';
+import type {RemotionAudioContextState} from './use-audio-context.js';
 import {useSingletonAudioContext} from './use-audio-context.js';
 import {waitUntilActuallyResumed} from './wait-until-actually-resumed.js';
 
@@ -57,7 +59,6 @@ export type ScheduleAudioNodeResult =
 export type ScheduleAudioNodeOptions = {
 	readonly node: AudioBufferSourceNode;
 	readonly mediaTimestamp: number;
-	readonly currentTime: number;
 	readonly scheduledTime: number;
 	readonly originalUnloopedMediaTimestamp: number;
 	readonly duration: number;
@@ -75,6 +76,7 @@ export type AudioSyncAnchorEmitter = {
 
 type SharedAudioContextValue = {
 	audioContext: AudioContext | null;
+	getAudioContextState: () => RemotionAudioContextState | null;
 	gainNode: GainNode | null;
 	audioSyncAnchor: {value: number};
 	audioSyncAnchorEmitter: AudioSyncAnchorEmitter;
@@ -82,7 +84,7 @@ type SharedAudioContextValue = {
 		options: ScheduleAudioNodeOptions,
 	) => ScheduleAudioNodeResult;
 	resume: () => Promise<void>;
-	suspend: () => void;
+	suspend: () => Promise<void>;
 	getIsResumingAudioContext: () => Promise<void> | null;
 	unscheduleAudioNode: (node: AudioBufferSourceNode) => void;
 };
@@ -170,16 +172,46 @@ type NodeToResume = {
 	duration: number;
 };
 
+const shouldSaveForLater = (
+	state: Exclude<RemotionAudioContextState, 'closed'>,
+) => {
+	if (
+		state === 'suspended' ||
+		state === 'running-to-suspended' ||
+		state === 'interrupted'
+	) {
+		return true;
+	}
+
+	if (state === 'running' || state === 'suspended-to-running') {
+		return false;
+	}
+
+	throw new Error(`Unexpected audio context state: ${state satisfies never}`);
+};
+
 export const SharedAudioContextProvider: React.FC<{
 	readonly children: React.ReactNode;
 	readonly audioLatencyHint: AudioContextLatencyCategory;
 	readonly audioEnabled: boolean;
-}> = ({children, audioLatencyHint, audioEnabled}) => {
+	readonly previewSampleRate: number | null;
+}> = ({children, audioLatencyHint, audioEnabled, previewSampleRate}) => {
 	const logLevel = useLogLevel();
+	const sampleRate = previewSampleRate ?? 48000;
+
+	useEffect(() => {
+		if (typeof window === 'undefined') {
+			return;
+		}
+
+		window.remotion_sampleRate = sampleRate;
+	}, [sampleRate]);
+
 	const ctxAndGain = useSingletonAudioContext({
 		logLevel,
 		latencyHint: audioLatencyHint,
 		audioEnabled,
+		sampleRate,
 	});
 	const audioContextIsPlayingEventually = useRef(false);
 	const isResuming = useRef<Promise<void> | null>(null);
@@ -221,7 +253,6 @@ export const SharedAudioContextProvider: React.FC<{
 		return ({
 			node,
 			mediaTimestamp,
-			currentTime,
 			scheduledTime,
 			duration,
 			offset,
@@ -231,8 +262,19 @@ export const SharedAudioContextProvider: React.FC<{
 				throw new Error('Audio context not found');
 			}
 
+			const currentState = ctxAndGain.getState();
+
+			if (currentState === 'closed') {
+				return {
+					type: 'not-started',
+					reason: 'audio context is closed',
+				};
+			}
+
+			const saveForLater = shouldSaveForLater(currentState);
+
 			if (duration > 0) {
-				if (ctxAndGain.audioContext.state === 'suspended') {
+				if (saveForLater) {
 					nodesToResume.current.set(node, {
 						scheduledTime,
 						offset,
@@ -264,7 +306,7 @@ export const SharedAudioContextProvider: React.FC<{
 
 			Log.verbose(
 				{logLevel, tag: 'audio-scheduling'},
-				'scheduled %c%s%c %s %c%s%c %s %c%s%c %s %s %s',
+				'scheduled %c%s%c %s %c%s%c %s %c%s%c %s %s %s %s %s',
 				scheduledMismatch ? 'color: red; font-weight: bold' : '',
 				scheduledTime.toFixed(4),
 				'',
@@ -283,13 +325,15 @@ export const SharedAudioContextProvider: React.FC<{
 					: Math.abs(timeDiff).toFixed(2) +
 							(timeDiff < 0 ? ' delay' : ' ahead'),
 				'',
-				'current=' + currentTime.toFixed(4),
+				'current=' + ctxAndGain.audioContext.currentTime.toFixed(4),
 				'offset=' + offset.toFixed(4),
 				'latency=' + latency.toFixed(4),
 				'state=' + ctxAndGain.audioContext.state,
 				originalUnloopedMediaTimestamp !== mediaTime
 					? 'original_ts=' + originalUnloopedMediaTimestamp.toFixed(4)
 					: '',
+				'action=' + (saveForLater ? 'schedule' : 'start'),
+				'',
 			);
 
 			prev.scheduledEndTime = scheduledEndTime;
@@ -318,7 +362,24 @@ export const SharedAudioContextProvider: React.FC<{
 
 		audioContextIsPlayingEventually.current = true;
 
-		const resumePromise = ctxAndGain.audioContext.resume();
+		ctxAndGain.gainNode.gain.cancelScheduledValues(
+			ctxAndGain.audioContext.currentTime,
+		);
+		ctxAndGain.gainNode.gain.setValueAtTime(
+			0,
+			ctxAndGain.audioContext.currentTime,
+		);
+		ctxAndGain.gainNode.gain.linearRampToValueAtTime(
+			1,
+			ctxAndGain.audioContext.currentTime + 0.03,
+		);
+
+		nodesToResume.current.forEach((r, node) => {
+			node.start(r.scheduledTime, r.offset, r.duration);
+		});
+		nodesToResume.current.clear();
+
+		const resumePromise = ctxAndGain.resume();
 
 		isResuming.current = new Promise<void>((resolve) => {
 			waitUntilActuallyResumed(ctxAndGain.audioContext, logLevel).then(resolve);
@@ -334,23 +395,6 @@ export const SharedAudioContextProvider: React.FC<{
 			isResuming.current = null;
 		});
 
-		ctxAndGain.gainNode.gain.cancelScheduledValues(
-			ctxAndGain.audioContext.currentTime,
-		);
-		ctxAndGain.gainNode.gain.setValueAtTime(
-			0,
-			ctxAndGain.audioContext.currentTime,
-		);
-		ctxAndGain.gainNode.gain.linearRampToValueAtTime(
-			1,
-			ctxAndGain.audioContext.currentTime + 0.03,
-		);
-
-		nodesToResume.current.forEach((r, node) =>
-			node.start(r.scheduledTime, r.offset, r.duration),
-		);
-		nodesToResume.current.clear();
-
 		return resumePromise.catch(() => {
 			// Already logged above; swallow to avoid unhandled rejection
 			// since callers (e.g. use-playback.ts) do not await this.
@@ -363,20 +407,21 @@ export const SharedAudioContextProvider: React.FC<{
 
 	const suspend = useCallback(() => {
 		if (!ctxAndGain) {
-			return;
+			return Promise.resolve();
 		}
 
 		if (!audioContextIsPlayingEventually.current) {
-			return;
+			return Promise.resolve();
 		}
 
 		audioContextIsPlayingEventually.current = false;
-		ctxAndGain.audioContext.suspend();
+		return ctxAndGain.suspend();
 	}, [ctxAndGain]);
 
 	const audioContextValue: SharedAudioContextValue = useMemo(() => {
 		return {
 			audioContext: ctxAndGain?.audioContext ?? null,
+			getAudioContextState: () => ctxAndGain?.getState() ?? null,
 			gainNode: ctxAndGain?.gainNode ?? null,
 			audioSyncAnchor,
 			audioSyncAnchorEmitter,

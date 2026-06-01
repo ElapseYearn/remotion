@@ -28,12 +28,12 @@ import {enforceAudioOption} from './enforce-audio';
 import {envFileOption} from './env-file';
 import {everyNthFrameOption} from './every-nth-frame';
 import {experimentalClientSideRenderingOption} from './experimental-client-side-rendering';
-import {experimentalVisualModeOption} from './experimental-visual-mode';
 import {folderExpiryOption} from './folder-expiry';
 import {forSeamlessAacConcatenationOption} from './for-seamless-aac-concatenation';
 import {forceNewStudioOption} from './force-new-studio';
 import {framesOption} from './frames';
 import {glOption} from './gl';
+import {gopSizeOption} from './gop-size';
 import {hardwareAccelerationOption} from './hardware-acceleration';
 import {headlessOption} from './headless';
 import {ignoreCertificateErrorsOption} from './ignore-certificate-errors';
@@ -65,6 +65,7 @@ import {packageManagerOption} from './package-manager';
 import {pixelFormatOption} from './pixel-format';
 import {portOption} from './port';
 import {preferLosslessAudioOption} from './prefer-lossless';
+import {previewSampleRateOption} from './preview-sample-rate';
 import {propsOption} from './props';
 import {proResProfileOption} from './prores-profile';
 import {publicDirOption} from './public-dir';
@@ -115,6 +116,7 @@ export const allOptions = {
 	folderExpiryOption,
 	enableMultiprocessOnLinuxOption,
 	glOption,
+	gopSizeOption,
 	enableLambdaInsights,
 	encodingMaxRateOption,
 	encodingBufferSizeOption,
@@ -125,6 +127,7 @@ export const allOptions = {
 	noOpenOption,
 	pixelFormatOption,
 	preferLosslessOption: preferLosslessAudioOption,
+	previewSampleRateOption,
 	proResProfileOption,
 	x264Option,
 	logLevelOption,
@@ -154,7 +157,6 @@ export const allOptions = {
 	isProductionOption,
 	askAIOption,
 	experimentalClientSideRenderingOption,
-	experimentalVisualModeOption,
 	keyboardShortcutsOption,
 	framesOption,
 	forceNewStudioOption,

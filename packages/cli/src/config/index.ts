@@ -71,6 +71,7 @@ const {
 	folderExpiryOption,
 	enableMultiprocessOnLinuxOption,
 	glOption,
+	gopSizeOption,
 	headlessOption,
 	numberOfGifLoopsOption,
 	beepOnFinishOption,
@@ -95,7 +96,6 @@ const {
 	askAIOption,
 	publicLicenseKeyOption,
 	experimentalClientSideRenderingOption,
-	experimentalVisualModeOption,
 	keyboardShortcutsOption,
 	forceNewStudioOption,
 	numberOfSharedAudioTagsOption,
@@ -122,6 +122,7 @@ const {
 	runsOption,
 	noOpenOption,
 	sampleRateOption,
+	previewSampleRateOption,
 } = BrowserSafeApis.options;
 
 declare global {
@@ -199,12 +200,6 @@ declare global {
 		 */
 		readonly setExperimentalRspackEnabled: (enabled: boolean) => void;
 		/**
-		 * Nothing here yet, but this is our playground for experiments.
-		 * @param enabled Boolean whether to enable experimental visual mode
-		 * @default false
-		 */
-		readonly setExperimentalVisualMode: (enabled: boolean) => void;
-		/**
 		 * Set number of shared audio tags. https://www.remotion.dev/docs/player/autoplay#using-the-numberofsharedaudiotags-prop
 		 * @param numberOfAudioTags
 		 * @default 0
@@ -224,11 +219,19 @@ declare global {
 		 */
 		readonly setShouldOpenBrowser: (should: boolean) => void;
 		/**
-		 * Set the log level.
-		 * Acceptable values: 'error' | 'warning' | 'info' | 'verbose' | 'trace'
-		 * Default value: 'info'
+		 * Set the log level used by the Remotion CLI.
+		 * Acceptable values: `'error' | 'warn' | 'info' | 'verbose' | 'trace'`
+		 * Default value: `'info'`
 		 *
-		 * Set this to 'verbose' to get browser logs and other IO.
+		 * Set this to `'verbose'` to get browser logs and other IO.
+		 */
+		readonly setLogLevel: (
+			newLogLevel: 'trace' | 'verbose' | 'info' | 'warn' | 'error',
+		) => void;
+		/**
+		 * Set the log level used by the Remotion CLI.
+		 *
+		 * @deprecated Renamed to [`setLogLevel()`](/docs/config#setloglevel).
 		 */
 		readonly setLevel: (
 			newLogLevel: 'trace' | 'verbose' | 'info' | 'warn' | 'error',
@@ -400,6 +403,11 @@ declare global {
 		 * possible values greatly differs between codecs.
 		 */
 		readonly setCrf: (newCrf: Crf) => void;
+		/**
+		 * Set the maximum number of frames between two keyframes.
+		 * Default: null, which lets the encoder decide.
+		 */
+		readonly setGopSize: (gopSize: number | null) => void;
 		/**
 		 * Set to true if don't want a video but an image sequence as the output.
 		 */
@@ -633,6 +641,11 @@ type FlatConfig = RemotionConfigObject &
 		 */
 		setSampleRate: (sampleRate: number) => void;
 		/**
+		 * Set the audio sample rate for preview playback.
+		 * Default: null, which uses 48000 Hz.
+		 */
+		setPreviewSampleRate: (sampleRate: number | null) => void;
+		/**
 		 * @deprecated 'The config format has changed. Change `Config.Bundling.*()` calls to `Config.*()` in your config file.'
 		 */
 		Bundling: void;
@@ -695,7 +708,6 @@ export const Config: FlatConfig = {
 		experimentalClientSideRenderingOption.setConfig,
 	setAllowHtmlInCanvasEnabled: allowHtmlInCanvasOption.setConfig,
 	setExperimentalRspackEnabled: rspackOption.setConfig,
-	setExperimentalVisualMode: experimentalVisualModeOption.setConfig,
 	setNumberOfSharedAudioTags: numberOfSharedAudioTagsOption.setConfig,
 	setWebpackPollingInMilliseconds: webpackPollOption.setConfig,
 	setShouldOpenBrowser: noOpenOption.setConfig,
@@ -707,6 +719,7 @@ export const Config: FlatConfig = {
 	setRendererPort,
 	setPublicDir: publicDirOption.setConfig,
 	setEntryPoint,
+	setLogLevel: logLevelOption.setConfig,
 	setLevel: logLevelOption.setConfig,
 	setBrowserExecutable: browserExecutableOption.setConfig,
 	setTimeoutInMilliseconds: delayRenderTimeoutInMillisecondsOption.setConfig,
@@ -749,6 +762,7 @@ export const Config: FlatConfig = {
 	setPixelFormat: pixelFormatOption.setConfig,
 	setCodec: videoCodecOption.setConfig,
 	setCrf: crfOption.setConfig,
+	setGopSize: gopSizeOption.setConfig,
 	setImageSequence: imageSequenceOption.setConfig,
 	setProResProfile: proResProfileOption.setConfig,
 	setX264Preset: x264Option.setConfig,
@@ -785,6 +799,7 @@ export const Config: FlatConfig = {
 	setBenchmarkRuns: runsOption.setConfig,
 	setBenchmarkConcurrencies: benchmarkConcurrenciesOption.setConfig,
 	setSampleRate: sampleRateOption.setConfig,
+	setPreviewSampleRate: previewSampleRateOption.setConfig,
 };
 
 export const ConfigInternals = {

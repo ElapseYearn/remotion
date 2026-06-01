@@ -10,16 +10,23 @@ export type ExtrapolateType = 'extend' | 'identity' | 'clamp' | 'wrap';
 export type EasingFunction = (input: number) => number;
 
 export type InterpolateOptions = Partial<{
+	easing: EasingFunction | readonly EasingFunction[];
+	extrapolateLeft: ExtrapolateType;
+	extrapolateRight: ExtrapolateType;
+	posterize: number;
+}>;
+
+type InterpolateSegmentResolvedOptions = {
 	easing: EasingFunction;
 	extrapolateLeft: ExtrapolateType;
 	extrapolateRight: ExtrapolateType;
-}>;
+};
 
 function interpolateFunction(
 	input: number,
 	inputRange: [number, number],
 	outputRange: [number, number],
-	options: Required<InterpolateOptions>,
+	options: InterpolateSegmentResolvedOptions,
 ): number {
 	const {extrapolateLeft, extrapolateRight, easing} = options;
 
@@ -97,8 +104,8 @@ function checkValidInputRange(arr: readonly number[]) {
 }
 
 function checkInfiniteRange(name: string, arr: readonly number[]) {
-	if (arr.length < 2) {
-		throw new Error(name + ' must have at least 2 elements');
+	if (arr.length < 1) {
+		throw new Error(name + ' must have at least 1 element');
 	}
 
 	for (const element of arr) {
@@ -111,6 +118,50 @@ function checkInfiniteRange(name: string, arr: readonly number[]) {
 				`${name} must contain only finite numbers, but got [${arr.join(',')}]`,
 			);
 		}
+	}
+}
+
+export function assertValidInterpolateEasingOption(
+	easing: EasingFunction | readonly EasingFunction[] | undefined,
+	inputRangeLength: number,
+) {
+	if (easing === undefined) {
+		return;
+	}
+
+	if (typeof easing === 'function') {
+		return;
+	}
+
+	const expectedLength = inputRangeLength - 1;
+	if (easing.length !== expectedLength) {
+		throw new Error(
+			`When easing is an array, it must have one entry per segment between keyframes (length inputRange.length - 1 = ${expectedLength}), but got length ${easing.length}`,
+		);
+	}
+
+	for (let i = 0; i < easing.length; i++) {
+		if (typeof easing[i] !== 'function') {
+			throw new Error(`easing[${i}] must be a function`);
+		}
+	}
+}
+
+export function assertValidInterpolatePosterizeOption(
+	posterize: number | undefined,
+) {
+	if (posterize === undefined) {
+		return;
+	}
+
+	if (
+		typeof posterize !== 'number' ||
+		!Number.isFinite(posterize) ||
+		posterize <= 0
+	) {
+		throw new Error(
+			`posterize must be a positive finite number, but got ${posterize}`,
+		);
 	}
 }
 
@@ -151,7 +202,23 @@ export function interpolate(
 
 	checkValidInputRange(inputRange);
 
-	const easing = options?.easing ?? ((num: number): number => num);
+	assertValidInterpolateEasingOption(options?.easing, inputRange.length);
+	assertValidInterpolatePosterizeOption(options?.posterize);
+
+	const easingOption = options?.easing;
+	const defaultEasing = (num: number): number => num;
+	const resolveEasingForSegment = (segmentIndex: number): EasingFunction => {
+		if (easingOption === undefined) {
+			return defaultEasing;
+		}
+
+		if (typeof easingOption === 'function') {
+			return easingOption;
+		}
+
+		// `segmentIndex` is in [0, inputRange.length - 2]; array length was validated above.
+		return easingOption[segmentIndex] as EasingFunction;
+	};
 
 	let extrapolateLeft: ExtrapolateType = 'extend';
 	if (options?.extrapolateLeft !== undefined) {
@@ -167,13 +234,21 @@ export function interpolate(
 		throw new TypeError('Cannot interpolate an input which is not a number');
 	}
 
-	const range = findRange(input, inputRange);
+	if (inputRange.length === 1) {
+		return outputRange[0];
+	}
+
+	const posterizedInput =
+		options?.posterize === undefined
+			? input
+			: Math.floor(input / options.posterize) * options.posterize;
+	const range = findRange(posterizedInput, inputRange);
 	return interpolateFunction(
-		input,
+		posterizedInput,
 		[inputRange[range], inputRange[range + 1]],
 		[outputRange[range], outputRange[range + 1]],
 		{
-			easing,
+			easing: resolveEasingForSegment(range),
 			extrapolateLeft,
 			extrapolateRight,
 		},

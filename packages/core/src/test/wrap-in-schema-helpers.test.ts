@@ -1,6 +1,11 @@
 import {expect, test} from 'bun:test';
 import {getFlatSchemaWithAllKeys} from '../flatten-schema.js';
-import {sequenceSchema} from '../sequence-field-schema.js';
+import {
+	sequencePremountSchema,
+	sequenceSchema,
+	sequenceStyleSchema,
+	sequenceVisualStyleSchema,
+} from '../sequence-field-schema.js';
 import {
 	getNestedValue,
 	mergeValues,
@@ -8,15 +13,29 @@ import {
 	selectActiveKeys,
 } from '../wrap-in-schema.js';
 
+test('sequenceStyleSchema is the union of visual style and premount fields', () => {
+	expect(Object.keys(sequenceStyleSchema).sort()).toEqual(
+		[
+			...Object.keys(sequenceVisualStyleSchema),
+			...Object.keys(sequencePremountSchema),
+		].sort(),
+	);
+});
+
 test('getFlatSchema(sequenceSchema) exposes every variant key', () => {
 	const flat = getFlatSchemaWithAllKeys(sequenceSchema);
 	expect(Object.keys(flat).sort()).toEqual(
 		[
+			'hidden',
 			'layout',
 			'style.translate',
 			'style.scale',
 			'style.rotate',
 			'style.opacity',
+			'premountFor',
+			'postmountFor',
+			'styleWhilePremounted',
+			'styleWhilePostmounted',
 		].sort(),
 	);
 });
@@ -34,12 +53,14 @@ test('readValuesFromProps reads dot-notation keys via getNestedValue', () => {
 	expect(values['style.rotate']).toBeUndefined();
 });
 
-test('selectActiveKeys returns only the layout key when layout=none', () => {
+test('selectActiveKeys returns only the hidden + layout keys when layout=none', () => {
 	const values = {
 		layout: 'none',
 		'style.scale': 2,
 	};
-	expect(selectActiveKeys(sequenceSchema, values)).toEqual(['layout']);
+	expect(selectActiveKeys(sequenceSchema, values).sort()).toEqual(
+		['hidden', 'layout'].sort(),
+	);
 });
 
 test('selectActiveKeys exposes style.* keys when layout=absolute-fill', () => {
@@ -49,12 +70,22 @@ test('selectActiveKeys exposes style.* keys when layout=absolute-fill', () => {
 	};
 	expect(selectActiveKeys(sequenceSchema, values).sort()).toEqual(
 		[
+			'hidden',
 			'layout',
 			'style.translate',
 			'style.scale',
 			'style.rotate',
 			'style.opacity',
+			'premountFor',
 		].sort(),
+	);
+
+	const values2 = {
+		layout: 'none',
+		'style.scale': 2,
+	};
+	expect(selectActiveKeys(sequenceSchema, values2).sort()).toEqual(
+		['hidden', 'layout'].sort(),
 	);
 });
 
@@ -65,6 +96,7 @@ test('mergeValues writes nested values back into props with dot keys', () => {
 		props,
 		valuesDotNotation: values,
 		schemaKeys: ['layout', 'style.scale'],
+		propsToDelete: new Set(),
 	});
 	expect(merged.layout).toBe('absolute-fill');
 	expect((merged.style as {scale: number}).scale).toBe(2);
@@ -79,8 +111,9 @@ test('end-to-end: layout=none drops style.scale from active props', () => {
 		props,
 		valuesDotNotation: values,
 		schemaKeys: activeKeys,
+		propsToDelete: new Set(),
 	});
-	expect(activeKeys).toEqual(['layout']);
+	expect(activeKeys.sort()).toEqual(['hidden', 'layout'].sort());
 	// style.scale was not in activeKeys → original style preserved, not overwritten
 	expect((merged.style as {scale: number}).scale).toBe(2);
 });

@@ -18,7 +18,7 @@ type SeriesSequenceProps = PropsWithChildren<
 		readonly durationInFrames: number;
 		readonly offset?: number;
 		readonly className?: string;
-	} & Pick<SequenceProps, 'layout' | 'name'> &
+	} & Pick<SequenceProps, 'layout' | 'name' | 'hidden'> &
 		LayoutAndStyle
 >;
 
@@ -67,12 +67,6 @@ const SeriesInner: FC<SeriesProps> = (props) => {
 
 			const debugInfo = `index = ${i}, duration = ${castedChild.props.durationInFrames}`;
 
-			if (!castedChild?.props.children) {
-				throw new TypeError(
-					`A <Series.Sequence /> component (${debugInfo}) was detected to not have any children. Delete it to fix this error.`,
-				);
-			}
-
 			const durationInFramesProp = castedChild.props.durationInFrames;
 			const {
 				durationInFrames,
@@ -117,6 +111,9 @@ const SeriesInner: FC<SeriesProps> = (props) => {
 			return (
 				<Sequence
 					name={name || '<Series.Sequence>'}
+					_remotionInternalDocumentationLink={
+						name ? undefined : 'https://www.remotion.dev/docs/series'
+					}
 					from={currentStartFrame}
 					durationInFrames={durationInFramesProp}
 					{...passedProps}
@@ -130,7 +127,12 @@ const SeriesInner: FC<SeriesProps> = (props) => {
 
 	return (
 		<IsInsideSeriesContainer>
-			<Sequence layout="none" name="<Series>" {...props}>
+			<Sequence
+				layout="none"
+				name="<Series>"
+				_remotionInternalDocumentationLink="https://www.remotion.dev/docs/series"
+				{...props}
+			>
 				{childrenValue}
 			</Sequence>
 		</IsInsideSeriesContainer>

@@ -1,16 +1,21 @@
-import React, {useContext, useMemo} from 'react';
+import React, {useCallback, useContext, useMemo} from 'react';
 import type {TSequence} from 'remotion';
 import {Internals, useCurrentFrame} from 'remotion';
 import {BLUE} from '../../helpers/colors';
 import {
-	SEQUENCE_BORDER_WIDTH,
 	getTimelineSequenceLayout,
+	SEQUENCE_BORDER_WIDTH,
 } from '../../helpers/get-timeline-sequence-layout';
-import {getTimelineLayerHeight} from '../../helpers/timeline-layout';
+import type {SequenceNodePathInfo} from '../../helpers/get-timeline-sequence-sort-key';
+import {
+	getTimelineLayerHeight,
+	TIMELINE_LAYER_HEIGHT_AUDIO,
+} from '../../helpers/timeline-layout';
 import {useMaxMediaDuration} from '../../helpers/use-max-media-duration';
 import {AudioWaveform} from '../AudioWaveform';
 import {LoopedTimelineIndicator} from './LoopedTimelineIndicators';
 import {TimelineImageInfo} from './TimelineImageInfo';
+import {TIMELINE_TOP_DRAG, useTimelineRowSelection} from './TimelineSelection';
 import {TimelineSequenceFrame} from './TimelineSequenceFrame';
 import {TimelineVideoInfo} from './TimelineVideoInfo';
 import {TimelineWidthContext} from './TimelineWidthProvider';
@@ -21,14 +26,21 @@ const IMAGE_GRADIENT = 'linear-gradient(to top, #2980b9, #3498db)';
 
 const TimelineSequenceFn: React.FC<{
 	readonly s: TSequence;
-}> = ({s}) => {
+	readonly nodePathInfo: SequenceNodePathInfo | null;
+}> = ({s, nodePathInfo}) => {
 	const windowWidth = useContext(TimelineWidthContext);
 
 	if (windowWidth === null) {
 		return null;
 	}
 
-	return <Inner windowWidth={windowWidth} s={s} />;
+	return (
+		<TimelineSequenceInner
+			windowWidth={windowWidth}
+			s={s}
+			nodePathInfo={nodePathInfo}
+		/>
+	);
 };
 
 const TimelineSequenceCurrentFrame: React.FC<{
@@ -38,6 +50,7 @@ const TimelineSequenceCurrentFrame: React.FC<{
 	readonly postmountWidth: number | null;
 	readonly style: React.CSSProperties;
 	readonly children: React.ReactNode;
+	readonly nodePathInfo: SequenceNodePathInfo | null;
 }> = ({
 	s,
 	displayDurationInFrames,
@@ -45,7 +58,22 @@ const TimelineSequenceCurrentFrame: React.FC<{
 	postmountWidth,
 	style,
 	children,
+	nodePathInfo,
 }) => {
+	const {onSelect, selectable} = useTimelineRowSelection(nodePathInfo);
+
+	const onPointerDown = useCallback(
+		(e: React.PointerEvent<HTMLDivElement>) => {
+			if (e.button === 0) {
+				e.stopPropagation();
+				onSelect({
+					shiftKey: e.shiftKey,
+					toggleKey: e.metaKey || e.ctrlKey,
+				});
+			}
+		},
+		[onSelect],
+	);
 	const frame = useCurrentFrame();
 	const relativeFrame = frame - s.from;
 	const relativeFrameWithPremount = relativeFrame + (s.premountDisplay ?? 0);
@@ -68,11 +96,16 @@ const TimelineSequenceCurrentFrame: React.FC<{
 		return {
 			...style,
 			opacity: isInRange ? 1 : 0.5,
+			...(TIMELINE_TOP_DRAG ? {cursor: 'pointer'} : {}),
 		};
 	}, [isInRange, style]);
 
 	return (
-		<div style={actualStyle} title={s.displayName}>
+		<div
+			style={actualStyle}
+			title={s.displayName}
+			onPointerDown={selectable ? onPointerDown : undefined}
+		>
 			{premountWidth ? (
 				<div
 					style={{
@@ -134,10 +167,11 @@ const TimelineSequenceCurrentFrame: React.FC<{
 	);
 };
 
-const Inner: React.FC<{
+const TimelineSequenceInner: React.FC<{
 	readonly s: TSequence;
 	readonly windowWidth: number;
-}> = ({s, windowWidth}) => {
+	readonly nodePathInfo: SequenceNodePathInfo | null;
+}> = ({s, windowWidth, nodePathInfo}) => {
 	// If a duration is 1, it is essentially a still and it should have width 0
 	// Some compositions may not be longer than their media duration,
 	// if that is the case, it needs to be asynchronously determined
@@ -208,10 +242,12 @@ const Inner: React.FC<{
 			premountWidth={premountWidth}
 			postmountWidth={postmountWidth}
 			style={style}
+			nodePathInfo={nodePathInfo}
 		>
 			{s.type === 'audio' ? (
 				<AudioWaveform
 					src={s.src}
+					height={TIMELINE_LAYER_HEIGHT_AUDIO}
 					doesVolumeChange={s.doesVolumeChange}
 					visualizationWidth={width}
 					startFrom={s.startMediaFrom}

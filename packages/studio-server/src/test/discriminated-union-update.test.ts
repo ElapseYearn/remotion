@@ -3,33 +3,44 @@ import assert from 'node:assert';
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {getFieldsToShow} from '@remotion/studio-shared';
-import {Internals} from 'remotion';
+import {NoReactInternals} from 'remotion/no-react';
 import {parseAst} from '../codemods/parse-ast';
-import {updateSequencePropsAst} from '../codemods/update-sequence-props';
+import {updateSequencePropsAst} from '../codemods/update-sequence-props/update-sequence-props';
 import {lineColumnToNodePath} from '../preview-server/routes/can-update-sequence-props';
+import {prettify} from './test-utils';
 
 test('Should correctly separate discriminated union for layout', () => {
 	const schemaFields = getFieldsToShow({
-		schema: Internals.sequenceSchema,
+		schema: NoReactInternals.sequenceSchema,
 		currentRuntimeValueDotNotation: {
 			layout: 'none',
 		},
-		overrideId: '0.7123890564498035',
+		nodePath: {
+			absolutePath: '',
+			nodePath: [],
+			sequenceKeys: [],
+			effectKeys: [],
+		},
 		codeValues: {},
-		dragOverrides: {},
+		getDragOverrides: () => ({}),
 	});
 	expect(schemaFields?.map((s) => s.key)).toEqual(['layout']);
 });
 
 test('Should expose absolute-fill variant fields when active', () => {
 	const schemaFields = getFieldsToShow({
-		schema: Internals.sequenceSchema,
+		schema: NoReactInternals.sequenceSchema,
 		currentRuntimeValueDotNotation: {
 			layout: 'absolute-fill',
 		},
-		overrideId: '0.5636826614884479',
+		nodePath: {
+			absolutePath: '',
+			nodePath: [],
+			sequenceKeys: [],
+			effectKeys: [],
+		},
 		codeValues: {},
-		dragOverrides: {},
+		getDragOverrides: () => ({}),
 	});
 	expect(schemaFields?.map((s) => s.key)).toEqual([
 		'layout',
@@ -37,10 +48,11 @@ test('Should expose absolute-fill variant fields when active', () => {
 		'style.scale',
 		'style.rotate',
 		'style.opacity',
+		'premountFor',
 	]);
 });
 
-test('Should be able to update a discriminated union', () => {
+test('Should be able to update a discriminated union', async () => {
 	const file = readFileSync(
 		path.join(__dirname, 'snapshots', 'discriminated-union.tsx'),
 		'utf-8',
@@ -58,32 +70,21 @@ test('Should be able to update a discriminated union', () => {
 			{
 				key: 'layout',
 				value: 'none',
-				defaultValue: Internals.sequenceSchema.layout.default,
+				defaultValue: NoReactInternals.sequenceSchema.layout.default,
 			},
 		],
+		schema: NoReactInternals.sequenceSchema,
 	});
 
 	const expected = readFileSync(
 		path.join(__dirname, 'snapshots', 'discriminated-union-expected.tsx'),
 		'utf-8',
 	);
-	const actualLines = update.serialized.split('\n');
-	const expectedLines = expected.split('\n');
-	const maxLines = Math.max(actualLines.length, expectedLines.length);
-	for (let i = 0; i < maxLines; i++) {
-		if (actualLines[i] !== expectedLines[i]) {
-			// eslint-disable-next-line no-console
-			console.log(update);
-			// eslint-disable-next-line no-console
-			console.log(actualLines[i], expectedLines[i]);
-			throw new Error(
-				`Line ${i + 1} differs ${actualLines[i]} ${expectedLines[i]}`,
-			);
-		}
-	}
+
+	expect(await prettify(update.serialized)).toBe(await prettify(expected));
 });
 
-test('Should remove variant-specific props when switching enum value', () => {
+test('Should remove variant-specific props when switching enum value', async () => {
 	const file = readFileSync(
 		path.join(__dirname, 'snapshots', 'discriminated-union-with-style.tsx'),
 		'utf-8',
@@ -101,10 +102,10 @@ test('Should remove variant-specific props when switching enum value', () => {
 			{
 				key: 'layout',
 				value: 'none',
-				defaultValue: Internals.sequenceSchema.layout.default,
+				defaultValue: NoReactInternals.sequenceSchema.layout.default,
 			},
 		],
-		schema: Internals.sequenceSchema,
+		schema: NoReactInternals.sequenceSchema,
 	});
 
 	const expected = readFileSync(
@@ -115,18 +116,42 @@ test('Should remove variant-specific props when switching enum value', () => {
 		),
 		'utf-8',
 	);
-	const actualLines = update.serialized.split('\n');
-	const expectedLines = expected.split('\n');
-	const maxLines = Math.max(actualLines.length, expectedLines.length);
-	for (let i = 0; i < maxLines; i++) {
-		if (actualLines[i] !== expectedLines[i]) {
-			// eslint-disable-next-line no-console
-			console.log(update);
-			// eslint-disable-next-line no-console
-			console.log(actualLines[i], expectedLines[i]);
-			throw new Error(
-				`Line ${i + 1} differs ${actualLines[i]} ${expectedLines[i]}`,
-			);
-		}
-	}
+
+	expect(await prettify(update.serialized)).toBe(await prettify(expected));
+});
+
+test('Should remove premountFor and styleWhile* when switching to layout="none"', async () => {
+	const file = readFileSync(
+		path.join(__dirname, 'snapshots', 'discriminated-union-with-premount.tsx'),
+		'utf-8',
+	);
+
+	const ast = parseAst(file);
+
+	const nodePath = lineColumnToNodePath(ast, 3);
+	assert(nodePath, 'No node path found');
+
+	const update = updateSequencePropsAst({
+		input: file,
+		nodePath,
+		updates: [
+			{
+				key: 'layout',
+				value: 'none',
+				defaultValue: NoReactInternals.sequenceSchema.layout.default,
+			},
+		],
+		schema: NoReactInternals.sequenceSchema,
+	});
+
+	const expected = readFileSync(
+		path.join(
+			__dirname,
+			'snapshots',
+			'discriminated-union-with-premount-expected.tsx',
+		),
+		'utf-8',
+	);
+
+	expect(await prettify(update.serialized)).toBe(await prettify(expected));
 });

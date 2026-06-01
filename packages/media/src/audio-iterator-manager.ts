@@ -26,7 +26,6 @@ type ScheduleAudioNode = (
 	node: AudioBufferSourceNode,
 	mediaTimestamp: number,
 	originalUnloopedMediaTimestamp: number,
-	currentTime: number,
 ) => ScheduleAudioNodeResult;
 
 export const audioIteratorManager = ({
@@ -87,6 +86,13 @@ export const audioIteratorManager = ({
 	let totalAudioScheduledInSeconds = 0;
 	let currentDelayHandle: {unblock: () => void} | null = null;
 
+	const unblockCurrentDelayHandle = () => {
+		if (currentDelayHandle) {
+			currentDelayHandle.unblock();
+			currentDelayHandle = null;
+		}
+	};
+
 	const pendingScheduleWaiters: {
 		remaining: number;
 		resolve: () => void;
@@ -120,7 +126,6 @@ export const audioIteratorManager = ({
 		playbackRate,
 		scheduleAudioNode,
 		logLevel,
-		currentTime,
 	}: {
 		buffer: AudioBuffer;
 		mediaTimestamp: number;
@@ -128,7 +133,6 @@ export const audioIteratorManager = ({
 		scheduleAudioNode: ScheduleAudioNode;
 		logLevel: LogLevel;
 		originalUnloopedMediaTimestamp: number;
-		currentTime: number;
 	}) => {
 		if (!audioBufferIterator) {
 			throw new Error('Audio buffer iterator not found');
@@ -147,7 +151,6 @@ export const audioIteratorManager = ({
 			node,
 			mediaTimestamp,
 			originalUnloopedMediaTimestamp,
-			currentTime,
 		);
 
 		if (started.type === 'not-started') {
@@ -176,13 +179,11 @@ export const audioIteratorManager = ({
 		playbackRate,
 		scheduleAudioNode,
 		logLevel,
-		currentTime,
 	}: {
 		buffer: BufferWithMediaTimestamp;
 		playbackRate: number;
 		scheduleAudioNode: ScheduleAudioNode;
 		logLevel: LogLevel;
-		currentTime: number;
 	}) => {
 		if (muted) {
 			return;
@@ -214,7 +215,6 @@ export const audioIteratorManager = ({
 			scheduleAudioNode,
 			logLevel,
 			originalUnloopedMediaTimestamp: buffer.buffer.timestamp,
-			currentTime,
 		});
 
 		drawDebugOverlay();
@@ -251,6 +251,7 @@ export const audioIteratorManager = ({
 		waitForTurn({
 			getPriority: () => {
 				if (iterator.isDestroyed()) {
+					onDestroyed();
 					return null;
 				}
 
@@ -295,7 +296,6 @@ export const audioIteratorManager = ({
 					playbackRate,
 					scheduleAudioNode,
 					logLevel,
-					currentTime,
 				});
 				proceedScheduling({
 					iterator,
@@ -316,10 +316,12 @@ export const audioIteratorManager = ({
 				if (e instanceof InputDisposedError) {
 					// iterator was disposed by a newer startAudioIterator call
 					// this is expected during rapid seeking
+					onDestroyed();
 					return;
 				}
 
 				if (e instanceof StaleWaiterError) {
+					onDestroyed();
 					// iterator was stale before it got its turn
 					return;
 				}
@@ -363,6 +365,8 @@ export const audioIteratorManager = ({
 		}
 
 		audioBufferIterator?.destroy();
+		unblockCurrentDelayHandle();
+
 		const delayHandle = delayPlaybackHandleIfNotPremounting();
 		currentDelayHandle = delayHandle;
 
@@ -379,6 +383,8 @@ export const audioIteratorManager = ({
 		audioIteratorsCreated++;
 		audioBufferIterator = iterator;
 
+		let chunksScheduled = 0;
+
 		proceedScheduling({
 			iterator,
 			nonce,
@@ -386,7 +392,12 @@ export const audioIteratorManager = ({
 			playbackRate,
 			scheduleAudioNode,
 			onScheduled: () => {
-				delayHandle.unblock();
+				chunksScheduled++;
+				// Need to schedule a bit into the future to unblock the buffer state,
+				// otherwise we might be scheduling too late.
+				if (chunksScheduled === 6) {
+					delayHandle.unblock();
+				}
 			},
 			onDestroyed: () => {
 				delayHandle.unblock();
@@ -432,6 +443,10 @@ export const audioIteratorManager = ({
 		fps: number;
 		getAudioContextCurrentTimeMockedInTest: () => number;
 	}) => {
+		if (nonce.isStale()) {
+			return;
+		}
+
 		if (
 			currentSeek.time === newTime &&
 			currentSeek.playbackRate === playbackRate &&
@@ -516,11 +531,7 @@ export const audioIteratorManager = ({
 		destroyIterator: () => {
 			audioBufferIterator?.destroy();
 			audioBufferIterator = null;
-
-			if (currentDelayHandle) {
-				currentDelayHandle.unblock();
-				currentDelayHandle = null;
-			}
+			unblockCurrentDelayHandle();
 		},
 		seek,
 		getAudioIteratorsCreated: () => audioIteratorsCreated,

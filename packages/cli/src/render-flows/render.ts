@@ -96,6 +96,7 @@ export const renderVideoFlow = async ({
 	addCleanupCallback,
 	cancelSignal,
 	crf,
+	gopSize,
 	uiCodec,
 	uiImageFormat,
 	ffmpegOverride,
@@ -129,7 +130,6 @@ export const renderVideoFlow = async ({
 	rspack,
 	askAIEnabled,
 	experimentalClientSideRenderingEnabled,
-	experimentalVisualModeEnabled,
 	keyboardShortcutsEnabled,
 	shouldCache,
 	sampleRate,
@@ -165,6 +165,7 @@ export const renderVideoFlow = async ({
 	onProgress: JobProgressCallback;
 	addCleanupCallback: (label: string, cb: () => void) => void;
 	crf: Crf | null;
+	gopSize: number | null;
 	cancelSignal: CancelSignal | null;
 	uiCodec: Codec | null;
 	uiImageFormat: VideoImageFormat | null;
@@ -198,7 +199,6 @@ export const renderVideoFlow = async ({
 	rspack: boolean;
 	askAIEnabled: boolean;
 	experimentalClientSideRenderingEnabled: boolean;
-	experimentalVisualModeEnabled: boolean;
 	keyboardShortcutsEnabled: boolean;
 	shouldCache: boolean;
 	sampleRate: number;
@@ -350,7 +350,6 @@ export const renderVideoFlow = async ({
 			publicPath,
 			audioLatencyHint,
 			experimentalClientSideRenderingEnabled,
-			experimentalVisualModeEnabled,
 			askAIEnabled,
 			keyboardShortcutsEnabled,
 			rspack,
@@ -675,6 +674,7 @@ export const renderVideoFlow = async ({
 			durationInFrames: durationInFrames ?? config.durationInFrames,
 		},
 		crf: crf ?? null,
+		gopSize,
 		envVariables,
 		frameRange,
 		serializedInputPropsWithCustomSchema,
