@@ -1,5 +1,4 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {type SequenceControls, type SequenceSchema} from 'remotion';
 import {
 	AbsoluteFill,
 	Internals,
@@ -9,7 +8,9 @@ import {
 	useVideoConfig,
 	type AbsoluteFillLayout,
 	type LayoutAndStyle,
+	type SequenceControls,
 	type SequenceProps,
+	type SequenceSchema,
 } from 'remotion';
 
 const {createWebGLContextError} = Internals;
@@ -233,13 +234,21 @@ const LightLeakCanvas: React.FC<{
  * @see [Documentation](https://www.remotion.dev/docs/light-leaks/light-leak)
  */
 const lightLeakSchema = {
-	seed: {type: 'number', default: 0, description: 'Seed'},
+	durationInFrames: Internals.durationInFramesField,
+	from: Internals.fromField,
+	seed: {
+		type: 'number',
+		default: 0,
+		description: 'Seed',
+		hiddenFromList: false,
+	},
 	hueShift: {
 		type: 'number',
 		min: 0,
 		max: 360,
 		default: 0,
 		description: 'Hue Shift',
+		hiddenFromList: false,
 	},
 	...Internals.sequenceStyleSchema,
 	hidden: Internals.hiddenField,
@@ -291,10 +300,11 @@ const LightLeakInner: React.FC<
 	);
 };
 
-export const LightLeak = Internals.wrapInSchema(
-	LightLeakInner,
-	lightLeakSchema,
-);
+export const LightLeak = Internals.wrapInSchema({
+	Component: LightLeakInner,
+	schema: lightLeakSchema,
+	supportsEffects: false,
+});
 
 LightLeak.displayName = 'LightLeak';
 

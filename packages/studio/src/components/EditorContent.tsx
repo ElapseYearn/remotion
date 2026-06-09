@@ -1,13 +1,18 @@
-import React, {useContext} from 'react';
+import React, {useCallback, useContext} from 'react';
 import {Internals} from 'remotion';
 import {InitialCompositionLoader} from './InitialCompositionLoader';
 import {MenuToolbar} from './MenuToolbar';
 import {SplitterContainer} from './Splitter/SplitterContainer';
 import {SplitterElement} from './Splitter/SplitterElement';
 import {SplitterHandle} from './Splitter/SplitterHandle';
+import {shouldClearSelectionOnPointerDown} from './Timeline/should-clear-selection-on-pointer-down';
 import {Timeline} from './Timeline/Timeline';
 import {TimelineEmptyState} from './Timeline/TimelineEmptyState';
-import {TimelineSelectionProvider} from './Timeline/TimelineSelection';
+import {TimelineKeyframeDragStateProvider} from './Timeline/TimelineKeyframeDragState';
+import {
+	TimelineSelectionProvider,
+	useTimelineSelection,
+} from './Timeline/TimelineSelection';
 
 const noop = () => undefined;
 
@@ -16,6 +21,29 @@ const container: React.CSSProperties = {
 	flexDirection: 'column',
 	flex: 1,
 	height: 0,
+};
+
+const StudioClearSelectionArea: React.FC<{
+	readonly children: React.ReactNode;
+}> = ({children}) => {
+	const {clearSelection} = useTimelineSelection();
+
+	const onPointerDown = useCallback(
+		(e: React.PointerEvent<HTMLDivElement>) => {
+			if (!shouldClearSelectionOnPointerDown(e)) {
+				return;
+			}
+
+			clearSelection();
+		},
+		[clearSelection],
+	);
+
+	return (
+		<div style={container} onPointerDown={onPointerDown}>
+			{children}
+		</div>
+	);
 };
 
 export const EditorContent: React.FC<{
@@ -46,14 +74,14 @@ export const EditorContent: React.FC<{
 	);
 
 	return (
-		<div style={container}>
-			<InitialCompositionLoader />
-			<MenuToolbar readOnlyStudio={readOnlyStudio} />
-			{showTimeline ? (
-				<TimelineSelectionProvider>{content}</TimelineSelectionProvider>
-			) : (
-				content
-			)}
-		</div>
+		<TimelineSelectionProvider>
+			<StudioClearSelectionArea>
+				<InitialCompositionLoader />
+				<MenuToolbar readOnlyStudio={readOnlyStudio} />
+				<TimelineKeyframeDragStateProvider>
+					{content}
+				</TimelineKeyframeDragStateProvider>
+			</StudioClearSelectionArea>
+		</TimelineSelectionProvider>
 	);
 };

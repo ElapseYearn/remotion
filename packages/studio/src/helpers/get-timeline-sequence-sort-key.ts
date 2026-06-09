@@ -5,6 +5,7 @@ export type SequenceNodePathInfo = {
 	auxiliaryKeys: string[];
 	index: number;
 	numberOfSequencesWithThisNodePath: number;
+	supportsEffects: boolean;
 };
 
 type Track = {
@@ -12,6 +13,7 @@ type Track = {
 	depth: number;
 	nodePathInfo: SequenceNodePathInfo | null;
 	keyframeDisplayOffset: number;
+	sequenceFrameOffset: number;
 };
 
 export type TrackWithHash = Track & {

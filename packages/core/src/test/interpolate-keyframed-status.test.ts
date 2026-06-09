@@ -5,8 +5,7 @@ test('interpolates linear numeric keyframes', () => {
 	const result = interpolateKeyframedStatus({
 		frame: 30,
 		status: {
-			canUpdate: false,
-			reason: 'keyframed',
+			status: 'keyframed',
 			interpolationFunction: 'interpolate',
 			keyframes: [
 				{frame: 0, value: 0},
@@ -20,12 +19,48 @@ test('interpolates linear numeric keyframes', () => {
 	expect(result).toBe(50);
 });
 
+test('interpolates linear tuple keyframes', () => {
+	const result = interpolateKeyframedStatus({
+		frame: 30,
+		status: {
+			status: 'keyframed',
+			interpolationFunction: 'interpolate',
+			keyframes: [
+				{frame: 0, value: [0, 0.5]},
+				{frame: 60, value: [1, 0.5]},
+			],
+			easing: ['linear'],
+			clamping: {left: 'extend', right: 'extend'},
+			posterize: undefined,
+		},
+	});
+	expect(result).toEqual([0.5, 0.5]);
+});
+
+test('sorts keyframes before interpolating numeric values', () => {
+	const result = interpolateKeyframedStatus({
+		frame: 75,
+		status: {
+			status: 'keyframed',
+			interpolationFunction: 'interpolate',
+			keyframes: [
+				{frame: 100, value: 100},
+				{frame: 50, value: 50},
+				{frame: 0, value: 0},
+			],
+			easing: ['linear', 'linear'],
+			clamping: {left: 'extend', right: 'extend'},
+			posterize: undefined,
+		},
+	});
+	expect(result).toBe(75);
+});
+
 test('clamps when extrapolation is clamp', () => {
 	const result = interpolateKeyframedStatus({
 		frame: 120,
 		status: {
-			canUpdate: false,
-			reason: 'keyframed',
+			status: 'keyframed',
 			interpolationFunction: 'interpolate',
 			keyframes: [
 				{frame: 0, value: 0},
@@ -43,8 +78,7 @@ test('posterizes the frame before interpolating numeric keyframes', () => {
 	const result = interpolateKeyframedStatus({
 		frame: 17,
 		status: {
-			canUpdate: false,
-			reason: 'keyframed',
+			status: 'keyframed',
 			interpolationFunction: 'interpolate',
 			keyframes: [
 				{frame: 0, value: 0},
@@ -62,8 +96,7 @@ test('returns single keyframe value', () => {
 	const result = interpolateKeyframedStatus({
 		frame: 100,
 		status: {
-			canUpdate: false,
-			reason: 'keyframed',
+			status: 'keyframed',
 			interpolationFunction: 'interpolate',
 			keyframes: [{frame: 0, value: 7}],
 			easing: [],
@@ -78,8 +111,7 @@ test('interpolates colors', () => {
 	const result = interpolateKeyframedStatus({
 		frame: 30,
 		status: {
-			canUpdate: false,
-			reason: 'keyframed',
+			status: 'keyframed',
 			interpolationFunction: 'interpolateColors',
 			keyframes: [
 				{frame: 0, value: '#000000'},
@@ -94,12 +126,29 @@ test('interpolates colors', () => {
 	expect(result).toMatch(/^rgba?\(/);
 });
 
+test('interpolates color keyframes with easing', () => {
+	const result = interpolateKeyframedStatus({
+		frame: 30,
+		status: {
+			status: 'keyframed',
+			interpolationFunction: 'interpolateColors',
+			keyframes: [
+				{frame: 0, value: 'black'},
+				{frame: 60, value: 'white'},
+			],
+			easing: [[0.42, 0, 1, 1]],
+			clamping: {left: 'clamp', right: 'clamp'},
+			posterize: undefined,
+		},
+	});
+	expect(result).toBe('rgba(80, 80, 80, 1)');
+});
+
 test('posterizes the frame before interpolating color keyframes', () => {
 	const result = interpolateKeyframedStatus({
 		frame: 17,
 		status: {
-			canUpdate: false,
-			reason: 'keyframed',
+			status: 'keyframed',
 			interpolationFunction: 'interpolateColors',
 			keyframes: [
 				{frame: 0, value: 'black'},
@@ -113,12 +162,47 @@ test('posterizes the frame before interpolating color keyframes', () => {
 	expect(result).toBe('rgba(64, 64, 64, 1)');
 });
 
+test('interpolates translate keyframes', () => {
+	const result = interpolateKeyframedStatus({
+		frame: 30,
+		status: {
+			status: 'keyframed',
+			interpolationFunction: 'interpolate',
+			keyframes: [
+				{frame: 0, value: '0px 0px'},
+				{frame: 60, value: '120px 60px'},
+			],
+			easing: ['linear'],
+			clamping: {left: 'extend', right: 'extend'},
+			posterize: undefined,
+		},
+	});
+	expect(result).toBe('60px 30px');
+});
+
+test('interpolates rotate keyframes', () => {
+	const result = interpolateKeyframedStatus({
+		frame: 30,
+		status: {
+			status: 'keyframed',
+			interpolationFunction: 'interpolate',
+			keyframes: [
+				{frame: 0, value: '0deg'},
+				{frame: 60, value: '120deg'},
+			],
+			easing: ['linear'],
+			clamping: {left: 'extend', right: 'extend'},
+			posterize: undefined,
+		},
+	});
+	expect(result).toBe('60deg');
+});
+
 test('uses bezier easing', () => {
 	const result = interpolateKeyframedStatus({
 		frame: 30,
 		status: {
-			canUpdate: false,
-			reason: 'keyframed',
+			status: 'keyframed',
 			interpolationFunction: 'interpolate',
 			keyframes: [
 				{frame: 0, value: 0},
@@ -131,4 +215,22 @@ test('uses bezier easing', () => {
 	});
 	expect(result).toBeGreaterThan(0);
 	expect(result).toBeLessThan(100);
+});
+
+test('interpolates scale strings component-wise', () => {
+	const result = interpolateKeyframedStatus({
+		frame: 30,
+		status: {
+			status: 'keyframed',
+			interpolationFunction: 'interpolate',
+			keyframes: [
+				{frame: 0, value: 2},
+				{frame: 60, value: '4 8 3'},
+			],
+			easing: ['linear'],
+			clamping: {left: 'extend', right: 'extend'},
+			posterize: undefined,
+		},
+	});
+	expect(result).toBe('3 5 2');
 });

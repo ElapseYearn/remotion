@@ -1,4 +1,5 @@
 import {expect, test} from 'bun:test';
+import type {SequenceSchema} from 'remotion';
 import {
 	updateEffectKeyframesAst,
 	updateSequenceKeyframesAst,
@@ -15,6 +16,20 @@ const getLine = (input: string, needle: string): number => {
 
 	return lineIndex + 1;
 };
+
+const translateSchema = {
+	'style.translate': {
+		type: 'translate',
+		default: '0px 0px',
+	},
+} satisfies SequenceSchema;
+
+const rotateSchema = {
+	'style.rotate': {
+		type: 'rotation-css',
+		default: '0deg',
+	},
+} satisfies SequenceSchema;
 
 // ---------------------------------------------------------------------------
 // Sequence: imports
@@ -44,7 +59,9 @@ export const Example: React.FC = () => {
 		/import\s*\{[^}]*\bAbsoluteFill\b[^}]*\binterpolate\b[^}]*\buseCurrentFrame\b[^}]*\}\s*from\s*['"]remotion['"]/,
 	);
 	expect(serialized).toContain('const frame = useCurrentFrame();');
-	expect(serialized).toContain('interpolate(frame, [30], [1])');
+	expect(serialized).toContain('interpolate(frame, [30], [1], {');
+	expect(serialized).toContain('extrapolateLeft: "clamp"');
+	expect(serialized).toContain('extrapolateRight: "clamp"');
 });
 
 test('adds interpolateColors import (not interpolate) for color conversion', () => {
@@ -65,6 +82,60 @@ export const Example: React.FC = () => {
 
 	expect(serialized).toContain('interpolateColors');
 	expect(serialized).not.toContain('{interpolate,');
+	expect(serialized).toContain('useCurrentFrame');
+	expect(serialized).toContain('const frame = useCurrentFrame();');
+});
+
+test('adds interpolate import for translate conversion', () => {
+	const input = `import React from 'react';
+import {AbsoluteFill} from 'remotion';
+
+export const Example: React.FC = () => {
+\treturn <AbsoluteFill style={{translate: '0px 59px'}} />;
+};
+`;
+	const {serialized} = updateSequenceKeyframesAst({
+		input,
+		nodePath: lineColumnToNodePath(input, getLine(input, '<AbsoluteFill')),
+		schema: translateSchema,
+		updates: [
+			{
+				key: 'style.translate',
+				operation: {type: 'add', frame: 44, value: '0px 59px'},
+			},
+		],
+	});
+
+	expect(serialized).toContain('interpolate');
+	expect(serialized).not.toContain('interpolateColors');
+	expect(serialized).toContain('useCurrentFrame');
+	expect(serialized).toContain('const frame = useCurrentFrame();');
+});
+
+test('adds interpolate import for rotate conversion', () => {
+	const input = `import React from 'react';
+import {AbsoluteFill} from 'remotion';
+
+export const Example: React.FC = () => {
+\treturn <AbsoluteFill style={{rotate: '0deg'}} />;
+};
+`;
+	const {serialized} = updateSequenceKeyframesAst({
+		input,
+		nodePath: lineColumnToNodePath(input, getLine(input, '<AbsoluteFill')),
+		schema: rotateSchema,
+		updates: [
+			{
+				key: 'style.rotate',
+				operation: {type: 'add', frame: 44, value: '19deg'},
+			},
+		],
+	});
+
+	expect(serialized).toContain('interpolate');
+	expect(serialized).not.toContain('interpolateColors');
+	expect(serialized).toContain('extrapolateLeft: "clamp"');
+	expect(serialized).toContain('extrapolateRight: "clamp"');
 	expect(serialized).toContain('useCurrentFrame');
 	expect(serialized).toContain('const frame = useCurrentFrame();');
 });
@@ -329,7 +400,9 @@ export const Example: React.FC = () => (
 
 	expect(serialized).toContain('const frame = useCurrentFrame();');
 	expect(serialized).toContain('return');
-	expect(serialized).toContain('interpolate(frame, [20], [1])');
+	expect(serialized).toContain('interpolate(frame, [20], [1], {');
+	expect(serialized).toContain('extrapolateLeft: "clamp"');
+	expect(serialized).toContain('extrapolateRight: "clamp"');
 });
 
 test('does not add a duplicate frame hook when user already has one with a different intermediate statement', () => {
@@ -388,7 +461,9 @@ export const Comp = () => {
 		/import\s*\{[^}]*\binterpolate\b[^}]*\buseCurrentFrame\b[^}]*\}\s*from\s*['"]remotion['"]/,
 	);
 	expect(serialized).toContain('const frame = useCurrentFrame();');
-	expect(serialized).toContain('interpolate(frame, [100], [1])');
+	expect(serialized).toContain('interpolate(frame, [100], [1], {');
+	expect(serialized).toContain('extrapolateLeft: "clamp"');
+	expect(serialized).toContain('extrapolateRight: "clamp"');
 });
 
 test('effect keyframe remove does not modify imports or insert a frame hook', () => {

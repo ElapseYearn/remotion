@@ -8,6 +8,7 @@ import {useIsStill} from '../../helpers/is-current-selected-still';
 import {useCachedCompositionComponentInfo} from '../../helpers/open-in-editor';
 import {callApi} from '../call-api';
 import {ContextMenu} from '../ContextMenu';
+import {importAssets, pickFilesToImport} from '../import-assets';
 import {VERTICAL_SCROLLBAR_CLASSNAME} from '../Menu/is-menu-item';
 import type {ComboboxValue} from '../NewComposition/ComboBox';
 import {showNotification} from '../Notifications/NotificationCenter';
@@ -23,14 +24,12 @@ import {TimelineDragHandler} from './TimelineDragHandler';
 import {TimelineHeightContainer} from './TimelineHeightContainer';
 import {TimelineInOutDragHandler} from './TimelineInOutDragHandler';
 import {TimelineInOutPointer} from './TimelineInOutPointer';
+import {TimelineKeyframeTracksProvider} from './TimelineKeyframeTracksContext';
 import {TimelineList} from './TimelineList';
 import {TimelinePinchZoom} from './TimelinePinchZoom';
 import {TimelinePlayCursorSyncer} from './TimelinePlayCursorSyncer';
 import {TimelineScrollable} from './TimelineScrollable';
-import {
-	TimelineSelectAllKeybindings,
-	useTimelineSelection,
-} from './TimelineSelection';
+import {TimelineSelectAllKeybindings} from './TimelineSelection';
 import {TimelineSlider} from './TimelineSlider';
 import {
 	TimelineTimeIndicators,
@@ -51,15 +50,17 @@ const container: React.CSSProperties = {
 
 const noop = () => undefined;
 
-const TimelineClearSelectionArea: React.FC<{
+const TimelineContextMenuArea: React.FC<{
 	readonly children: React.ReactNode;
 }> = ({children}) => {
-	const {clearSelection} = useTimelineSelection();
 	const {compositions, canvasContent} = useContext(
 		Internals.CompositionManager,
 	);
 	const videoConfig = Internals.useUnsafeVideoConfig();
 	const [isAddingSolid, setIsAddingSolid] = useState(false);
+	const [isAddingAsset, setIsAddingAsset] = useState(false);
+	const {previewServerState} = useContext(StudioServerConnectionCtx);
+	const previewConnected = previewServerState.type === 'connected';
 
 	const currentCompositionId =
 		canvasContent?.type === 'composition' ? canvasContent.compositionId : null;
@@ -83,26 +84,21 @@ const TimelineClearSelectionArea: React.FC<{
 		compositionId: currentCompositionId,
 	});
 
-	// Selection-triggering click handlers in children call e.stopPropagation(),
-	// so any pointerdown that bubbles up here is by definition on empty space
-	// and should clear the current selection.
-	const onPointerDown = useCallback(
-		(e: React.PointerEvent<HTMLDivElement>) => {
-			if (e.button !== 0) {
-				return;
-			}
-
-			clearSelection();
-		},
-		[clearSelection],
-	);
-
 	const canInsertSolid =
+		previewConnected &&
 		compositionComponentInfo?.canAddSequence === true &&
 		currentCompositionId !== null &&
 		compositionFile !== null &&
 		videoConfig !== null &&
 		!isAddingSolid;
+
+	const canInsertAsset =
+		previewConnected &&
+		!window.remotion_isReadOnlyStudio &&
+		compositionComponentInfo?.canAddSequence === true &&
+		currentCompositionId !== null &&
+		compositionFile !== null &&
+		!isAddingAsset;
 
 	const insertSolid = useCallback(async () => {
 		if (
@@ -139,6 +135,32 @@ const TimelineClearSelectionArea: React.FC<{
 		}
 	}, [canInsertSolid, compositionFile, currentCompositionId, videoConfig]);
 
+	const insertAsset = useCallback(async () => {
+		if (
+			!canInsertAsset ||
+			currentCompositionId === null ||
+			compositionFile === null
+		) {
+			return;
+		}
+
+		const files = await pickFilesToImport();
+		if (files.length === 0) {
+			return;
+		}
+
+		setIsAddingAsset(true);
+		try {
+			await importAssets({
+				files,
+				compositionFile,
+				compositionId: currentCompositionId,
+			});
+		} finally {
+			setIsAddingAsset(false);
+		}
+	}, [canInsertAsset, compositionFile, currentCompositionId]);
+
 	const contextMenuItems = useMemo((): ComboboxValue[] => {
 		return [
 			{
@@ -153,8 +175,20 @@ const TimelineClearSelectionArea: React.FC<{
 				quickSwitcherLabel: null,
 				disabled: !canInsertSolid,
 			},
+			{
+				type: 'item',
+				id: 'insert-asset',
+				label: 'Add asset',
+				value: 'insert-asset',
+				onClick: insertAsset,
+				keyHint: null,
+				leftItem: null,
+				subMenu: null,
+				quickSwitcherLabel: null,
+				disabled: !canInsertAsset,
+			},
 		];
-	}, [insertSolid, canInsertSolid]);
+	}, [insertSolid, canInsertSolid, insertAsset, canInsertAsset]);
 
 	return (
 		<ContextMenu
@@ -163,7 +197,6 @@ const TimelineClearSelectionArea: React.FC<{
 			onOpen={null}
 			style={container}
 			className={'css-reset ' + VERTICAL_SCROLLBAR_CLASSNAME}
-			onPointerDown={onPointerDown}
 		>
 			{children}
 		</ContextMenu>
@@ -212,7 +245,7 @@ const TimelineInner: React.FC = () => {
 	const hasBeenCut = filtered.length > shown.length;
 
 	return (
-		<TimelineClearSelectionArea>
+		<TimelineContextMenuArea>
 			{sequences.map((sequence) => {
 				if (!sequence.controls || !previewConnected || !sequence.getStack()) {
 					return null;
@@ -229,43 +262,45 @@ const TimelineInner: React.FC = () => {
 				);
 			})}
 			<SequencePropsObserver />
-			<TimelineSelectAllKeybindings timeline={shown} />
-			<TimelineHeightContainer shown={shown} hasBeenCut={hasBeenCut}>
-				{isStill ? (
-					<TimelineList timeline={shown} />
-				) : (
-					<TimelineWidthProvider>
-						<TimelinePinchZoom />
-						<SplitterContainer
-							orientation="vertical"
-							defaultFlex={0.2}
-							id="names-to-timeline"
-							maxFlex={0.5}
-							minFlex={0.15}
-						>
-							<SplitterElement
-								type="flexer"
-								sticky={<TimelineTimePlaceholders />}
+			<TimelineKeyframeTracksProvider tracks={filtered}>
+				<TimelineSelectAllKeybindings timeline={shown} />
+				<TimelineHeightContainer shown={shown} hasBeenCut={hasBeenCut}>
+					{isStill ? (
+						<TimelineList timeline={shown} />
+					) : (
+						<TimelineWidthProvider>
+							<TimelinePinchZoom />
+							<SplitterContainer
+								orientation="vertical"
+								defaultFlex={0.2}
+								id="names-to-timeline"
+								maxFlex={0.5}
+								minFlex={0.15}
 							>
-								<TimelineList timeline={shown} />
-							</SplitterElement>
-							<SplitterHandle onCollapse={noop} allowToCollapse="none" />
-							<SplitterElement type="anti-flexer" sticky={null}>
-								<TimelineScrollable>
-									<TimelineTracks timeline={shown} hasBeenCut={hasBeenCut} />
-									<TimelinePlayCursorSyncer />
-									<TimelineInOutPointer />
-									<TimelineTimeIndicators />
-									<TimelineDragHandler />
-									<TimelineInOutDragHandler />
-									<TimelineSlider />
-								</TimelineScrollable>
-							</SplitterElement>
-						</SplitterContainer>
-					</TimelineWidthProvider>
-				)}
-			</TimelineHeightContainer>
-		</TimelineClearSelectionArea>
+								<SplitterElement
+									type="flexer"
+									sticky={<TimelineTimePlaceholders />}
+								>
+									<TimelineList timeline={shown} />
+								</SplitterElement>
+								<SplitterHandle onCollapse={noop} allowToCollapse="none" />
+								<SplitterElement type="anti-flexer" sticky={null}>
+									<TimelineScrollable>
+										<TimelineTracks timeline={shown} hasBeenCut={hasBeenCut} />
+										<TimelinePlayCursorSyncer />
+										<TimelineInOutPointer />
+										<TimelineTimeIndicators />
+										<TimelineDragHandler />
+										<TimelineInOutDragHandler />
+										<TimelineSlider />
+									</TimelineScrollable>
+								</SplitterElement>
+							</SplitterContainer>
+						</TimelineWidthProvider>
+					)}
+				</TimelineHeightContainer>
+			</TimelineKeyframeTracksProvider>
+		</TimelineContextMenuArea>
 	);
 };
 

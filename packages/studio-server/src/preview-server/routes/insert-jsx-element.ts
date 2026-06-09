@@ -1,8 +1,12 @@
 import {RenderInternals} from '@remotion/renderer';
-import type {
-	InsertJsxElementRequest,
-	InsertJsxElementResponse,
-	InsertableCompositionElement,
+import {
+	areComponentProps,
+	isComponentIdentifier,
+	isComponentImportPath,
+	isUrl,
+	type InsertJsxElementRequest,
+	type InsertJsxElementResponse,
+	type InsertableCompositionElement,
 } from '@remotion/studio-shared';
 import {writeFileAndNotifyFileWatchers} from '../../file-watcher';
 import {insertJsxElementIntoComposition} from '../../helpers/resolve-composition-component';
@@ -26,12 +30,74 @@ const validateElement = (element: InsertableCompositionElement) => {
 	if (element.type === 'solid') {
 		validateDimension('width', element.width);
 		validateDimension('height', element.height);
+		return;
 	}
+
+	if (element.type === 'asset') {
+		if (element.srcType === 'remote') {
+			if (!isUrl(element.src)) {
+				throw new Error('Remote asset source must be a URL');
+			}
+		} else if (!element.src || element.src.includes('\\')) {
+			throw new Error('Asset path must be a static file path');
+		}
+
+		if (element.dimensions) {
+			validateDimension('width', element.dimensions.width);
+			validateDimension('height', element.dimensions.height);
+		}
+
+		return;
+	}
+
+	if (element.type === 'component') {
+		if (!isComponentIdentifier(element.componentName)) {
+			throw new Error('Unsupported component name');
+		}
+
+		if (!isComponentIdentifier(element.importName)) {
+			throw new Error('Unsupported component import name');
+		}
+
+		if (!isComponentImportPath(element.importPath)) {
+			throw new Error('Unsupported component import path');
+		}
+
+		if (!areComponentProps(element.props)) {
+			throw new Error('Unsupported component props');
+		}
+
+		return;
+	}
+
+	throw new Error('Unsupported element type');
 };
 
 const getElementLabel = (element: InsertableCompositionElement) => {
 	if (element.type === 'solid') {
 		return '<Solid>';
+	}
+
+	if (element.type === 'asset') {
+		if (element.assetType === 'image') {
+			return '<Img>';
+		}
+
+		if (element.assetType === 'video') {
+			return '<Video>';
+		}
+
+		if (element.assetType === 'gif') {
+			return '<Gif>';
+		}
+
+		if (element.assetType === 'audio') {
+			return '<Audio>';
+		}
+	}
+
+	if (element.type === 'component') {
+		return `<${element.componentName}>`;
 	}
 
 	throw new Error('Unsupported element type');

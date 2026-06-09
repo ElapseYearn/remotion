@@ -23,10 +23,12 @@ Replace `my-video` with a suitable project name.
 
 Before designing visual scenes, layouts, promos, motion graphics, or text-heavy videos, load [rules/video-layout.md](rules/video-layout.md) for video-first layout and text sizing guidance.
 
-Animate properties using `useCurrentFrame()` and `interpolate()`. Use Easing to customize the timing of the animation.
+Animate properties using `useCurrentFrame()` and `interpolate()`. Prefer `interpolate()` over `spring()` unless physics-based motion is explicitly needed. Use `Easing.bezier()` to customize timing, including jumpy or overshooting motion.
+
+For animations that should be editable in Remotion Studio, keep the `interpolate()` call inline in the `style` prop and use individual CSS transform properties (`scale`, `translate`, `rotate`) instead of composing a `transform` string.
 
 ```tsx
-import { useCurrentFrame, Easing } from "remotion";
+import { useCurrentFrame, Easing, interpolate, useVideoConfig } from "remotion";
 
 export const FadeIn = () => {
   const frame = useCurrentFrame();
@@ -40,6 +42,26 @@ export const FadeIn = () => {
 
   return <div style={{ opacity }}>Hello World!</div>;
 };
+```
+
+Prefer:
+
+```tsx
+style={{
+  scale: interpolate(frame, [0, 100], [0, 1]),
+  translate: interpolate(frame, [0, 100], ["0px 0px", "100px 100px"]),
+  rotate: interpolate(frame, [0, 100], ["20deg", "90deg"]),
+}}
+```
+
+Over:
+
+```tsx
+const scale = interpolate(frame, [0, 100], [0, 1]);
+
+style={{
+  transform: `scale(${scale})`,
+}}
 ```
 
 CSS transitions or animations are FORBIDDEN - they will not render correctly.  
@@ -232,6 +254,14 @@ When needing to visualize audio (spectrum bars, waveforms, bass-reactive effects
 
 When needing to use sound effects, load the [./rules/sfx.md](./rules/sfx.md) file for more information.
 
+## Visual and pixel effects
+
+When creating a visual effect, prefer: 1. normal Remotion/HTML/CSS/SVG/filter/blend/mask animation, 2. a listed effect via [rules/effects.md](rules/effects.md), including on HTML rendered through `<HtmlInCanvas>`, 3. custom `<HtmlInCanvas onPaint>` via [rules/html-in-canvas.md](rules/html-in-canvas.md) only if no listed effect fits.
+
+For light leak overlays, see [rules/light-leaks.md](rules/light-leaks.md). Docs: https://www.remotion.dev/docs/effects
+
+Available effects: `barrelDistortion()`, `blur()`, `brightness()`, `chromaticAberration()`, `colorKey()`, `contrast()`, `dotGrid()`, `dropShadow()`, `duotone()`, `evolve()`, `fisheye()`, `glow()`, `grayscale()`, `halftone()`, `halftoneLinearGradient()`, `hue()`, `invert()`, `lightLeak()`, `linearProgressiveBlur()`, `lines()`, `mirror()`, `noise()`, `noiseDisplacement()`, `pixelDissolve()`, `rings()`, `saturation()`, `scale()`, `scanlines()`, `shine()`, `speckle()`, `starburst()`, `tint()`, `uvTranslate()`, `vignette()`, `wave()`, `waves()`, `whiteNoise()`, `xyTranslate()`, `zigzag()`.
+
 ## 3D content
 
 See [rules/3d.md](rules/3d.md) for 3D content in Remotion using Three.js and React Three Fiber.
@@ -276,17 +306,9 @@ See [rules/gifs.md](rules/gifs.md) for how to display GIFs synchronized with Rem
 
 See [rules/images.md](rules/images.md) for sizing and positioning images, dynamic image paths, and getting image dimensions.
 
-## Light leaks
-
-See [rules/light-leaks.md](rules/light-leaks.md) for light leak overlay effects using `@remotion/light-leaks`.
-
 ## Lottie animations
 
 See [rules/lottie.md](rules/lottie.md) for embedding Lottie animations in Remotion.
-
-## HTML in canvas
-
-See [rules/html-in-canvas.md](rules/html-in-canvas.md) if you need to render HTML into a `<canvas>` to apply 2D or WebGL effects via `<HtmlInCanvas>`.
 
 ## Measuring DOM nodes
 

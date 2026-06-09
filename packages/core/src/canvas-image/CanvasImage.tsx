@@ -21,8 +21,10 @@ import {
 import {addSequenceStackTraces} from '../enable-sequence-stack-traces.js';
 import {usePreload} from '../prefetch.js';
 import {
+	fromField,
 	hiddenField,
 	sequenceVisualStyleSchema,
+	durationInFramesField,
 	type SequenceSchema,
 } from '../sequence-field-schema.js';
 import {Sequence} from '../Sequence.js';
@@ -34,6 +36,8 @@ import {wrapInSchema} from '../wrap-in-schema.js';
 import type {CanvasImageCanvasProps, CanvasImageProps} from './props.js';
 
 export const canvasImageSchema = {
+	durationInFrames: durationInFramesField,
+	from: fromField,
 	fit: {
 		type: 'enum',
 		default: 'fill',
@@ -478,7 +482,11 @@ const CanvasImageInner = forwardRef<
  * @description Renders a static image to a `<canvas>` and applies Remotion effects.
  * @see [Documentation](https://www.remotion.dev/docs/canvasimage)
  */
-export const CanvasImage = wrapInSchema(CanvasImageInner, canvasImageSchema);
+export const CanvasImage = wrapInSchema({
+	Component: CanvasImageInner,
+	schema: canvasImageSchema,
+	supportsEffects: true,
+});
 
 CanvasImage.displayName = 'CanvasImage';
 

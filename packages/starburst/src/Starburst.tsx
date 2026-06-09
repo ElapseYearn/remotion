@@ -274,7 +274,9 @@ const StarburstCanvas: React.FC<{
  * @description Renders a static WebGL-based starburst ray pattern as a Sequence.
  * @see [Documentation](https://www.remotion.dev/docs/starburst/starburst)
  */
-const starburstSchema = {
+export const starburstSchema = {
+	durationInFrames: Internals.durationInFramesField,
+	from: Internals.fromField,
 	rays: {
 		type: 'number',
 		min: 2,
@@ -282,6 +284,18 @@ const starburstSchema = {
 		step: 1,
 		default: 12,
 		description: 'Number of Rays',
+		hiddenFromList: false,
+	},
+	colors: {
+		type: 'array',
+		item: {
+			type: 'color',
+		},
+		default: undefined,
+		minLength: 2,
+		newItemDefault: '#ff0000',
+		description: 'Colors',
+		keyframable: false,
 	},
 	rotation: {
 		type: 'number',
@@ -290,6 +304,7 @@ const starburstSchema = {
 		step: 1,
 		default: 0,
 		description: 'Rotation',
+		hiddenFromList: false,
 	},
 	smoothness: {
 		type: 'number',
@@ -298,6 +313,7 @@ const starburstSchema = {
 		step: 0.01,
 		default: 0,
 		description: 'Edge Smoothness',
+		hiddenFromList: false,
 	},
 	vignette: {
 		type: 'number',
@@ -306,6 +322,7 @@ const starburstSchema = {
 		step: 0.01,
 		default: 1,
 		description: 'Vignette',
+		hiddenFromList: false,
 	},
 	originOffsetX: {
 		type: 'number',
@@ -314,6 +331,7 @@ const starburstSchema = {
 		step: 0.01,
 		default: 0,
 		description: 'Origin Offset X',
+		hiddenFromList: false,
 	},
 	originOffsetY: {
 		type: 'number',
@@ -322,6 +340,7 @@ const starburstSchema = {
 		step: 0.01,
 		default: 0,
 		description: 'Origin Offset Y',
+		hiddenFromList: false,
 	},
 	...Internals.sequenceStyleSchema,
 	hidden: Internals.hiddenField,
@@ -415,10 +434,11 @@ const StarburstInner: React.FC<
 	);
 };
 
-export const Starburst = Internals.wrapInSchema(
-	StarburstInner,
-	starburstSchema,
-);
+export const Starburst = Internals.wrapInSchema({
+	Component: StarburstInner,
+	schema: starburstSchema,
+	supportsEffects: false,
+});
 
 Starburst.displayName = 'Starburst';
 

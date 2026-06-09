@@ -6,7 +6,9 @@ import {BACKGROUND, CLEAR_HOVER, LIGHT_TEXT} from '../helpers/colors';
 import {buildAssetFolderStructure} from '../helpers/create-folder-tree';
 import {toggleBooleanMapKey} from '../helpers/persist-boolean-map';
 import {persistExpandedFolders} from '../helpers/persist-open-folders';
-import useAssetDragEvents from '../helpers/use-asset-drag-events';
+import useAssetDragEvents, {
+	isFileDragEvent,
+} from '../helpers/use-asset-drag-events';
 import {FolderContext} from '../state/folders';
 import {useZIndex} from '../state/z-index';
 import {AssetFolderTree} from './AssetSelectorItem';
@@ -93,6 +95,10 @@ export const AssetSelector: React.FC<{
 	});
 	const onDragOver: React.DragEventHandler<HTMLDivElement> = useCallback(
 		(e) => {
+			if (!isFileDragEvent(e)) {
+				return;
+			}
+
 			e.preventDefault();
 		},
 		[],
@@ -101,14 +107,42 @@ export const AssetSelector: React.FC<{
 	const onDrop: React.DragEventHandler<HTMLDivElement> = useCallback(
 		async (e) => {
 			try {
+				if (!isFileDragEvent(e)) {
+					setDropLocation(null);
+					return;
+				}
+
 				e.preventDefault();
 				e.stopPropagation();
 				const {files} = e.dataTransfer;
+				if (files.length === 0) {
+					setDropLocation(null);
+					return;
+				}
+
 				const assetPath = dropLocation ?? null;
 
 				const makePath = (file: File) => {
 					return [assetPath, file.name].filter(Boolean).join('/');
 				};
+
+				const differentExistingFile = Array.from(files).find((file) => {
+					const filePath = makePath(file);
+					return staticFiles.some(
+						(staticFile) =>
+							staticFile.name === filePath &&
+							staticFile.sizeInBytes !== file.size,
+					);
+				});
+				if (differentExistingFile) {
+					showNotification(
+						`File with name ${makePath(
+							differentExistingFile,
+						)} already exists and is different`,
+						4000,
+					);
+					return;
+				}
 
 				for (const file of files) {
 					const body = await file.arrayBuffer();
@@ -129,7 +163,7 @@ export const AssetSelector: React.FC<{
 				setDropLocation(null);
 			}
 		},
-		[dropLocation],
+		[dropLocation, staticFiles],
 	);
 
 	return (

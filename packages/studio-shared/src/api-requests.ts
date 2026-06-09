@@ -17,11 +17,18 @@ import type {
 	CanUpdateSequencePropsResponseFalse,
 	CanUpdateSequencePropsResponseTrue,
 	CanUpdateSequencePropStatus,
+	ExtrapolateType,
 	SequenceNodePath,
 	SequencePropsSubscriptionKey,
 	SequenceSchema,
 } from 'remotion';
 import type {RecastCodemod, VisualControlChange} from './codemods';
+import type {ComponentProp} from './component-drag-data';
+import type {
+	EffectClipboardParam,
+	EffectClipboardPasteType,
+	EffectClipboardSnapshot,
+} from './effect-clipboard-data';
 import type {PackageManager} from './package-manager';
 import type {ProjectInfo} from './project-info';
 import type {
@@ -30,6 +37,11 @@ import type {
 } from './render-job';
 import type {SymbolicatedStackFrame} from './stack-types';
 import type {EnumPath} from './stringify-default-props';
+
+type KeyframeEasing = Extract<
+	CanUpdateSequencePropStatus,
+	{status: 'keyframed'}
+>['easing'][number];
 
 export type OpenInFileExplorerRequest = {
 	directory: string;
@@ -217,6 +229,15 @@ export type DeleteStaticFileResponse = {
 	existed: boolean;
 };
 
+export type RenameStaticFileRequest = {
+	oldRelativePath: string;
+	newRelativePath: string;
+};
+
+export type RenameStaticFileResponse = {
+	success: boolean;
+};
+
 export type CanUpdateDefaultPropsResponse =
 	| {
 			canUpdate: true;
@@ -286,8 +307,8 @@ export type SaveSequencePropEdit = {
 export type SaveSequencePropsRequest = {
 	edits: SaveSequencePropEdit[];
 	clientId: string;
-	undoLabel: string | null;
-	redoLabel: string | null;
+	undoLabel: string;
+	redoLabel: string;
 };
 
 export type SaveSequencePropsResult = {
@@ -307,16 +328,25 @@ export type SaveSequencePropsResponse =
 			reason: CannotUpdateSequenceReason;
 	  };
 
-export type SaveEffectPropsRequest = {
+type SaveEffectPropsRequestBase = {
 	fileName: string;
 	sequenceNodePath: SequencePropsSubscriptionKey;
 	effectIndex: number;
 	key: string;
-	value: string;
 	defaultValue: string | null;
 	schema: SequenceSchema;
 	clientId: string;
 };
+
+export type SaveEffectPropsRequest =
+	| (SaveEffectPropsRequestBase & {
+			type: 'value';
+			value: string;
+	  })
+	| (SaveEffectPropsRequestBase & {
+			type: 'effect-param';
+			effectParam: EffectClipboardParam;
+	  });
 
 export type SaveEffectPropsResponse = CanUpdateEffectPropsResponse;
 
@@ -339,16 +369,60 @@ export type AddEffectResponse =
 			stack: string;
 	  };
 
-export type DeleteSequenceKeyframeRequest = {
+export type ReorderEffectRequest = {
+	fileName: string;
+	sequenceNodePath: SequencePropsSubscriptionKey;
+	fromIndex: number;
+	toIndex: number;
+	clientId: string;
+};
+
+export type ReorderEffectResponse =
+	| {
+			success: true;
+	  }
+	| {
+			success: false;
+			reason: string;
+			stack: string;
+	  };
+
+export type ReorderSequencePosition = 'before' | 'after';
+
+export type ReorderSequenceRequest = {
+	fileName: string;
+	sourceNodePath: SequencePropsSubscriptionKey;
+	targetNodePath: SequencePropsSubscriptionKey;
+	position: ReorderSequencePosition;
+	clientId: string;
+};
+
+export type ReorderSequenceResponse =
+	| {
+			success: true;
+	  }
+	| {
+			success: false;
+			reason: string;
+			stack: string;
+	  };
+
+export type DeleteSequenceKeyframe = {
 	fileName: string;
 	nodePath: SequencePropsSubscriptionKey;
 	key: string;
 	frame: number;
 	schema: SequenceSchema;
-	clientId: string;
 };
 
-export type DeleteSequenceKeyframeResponse = SaveSequencePropsResponse;
+export type MoveSequenceKeyframe = {
+	fileName: string;
+	nodePath: SequencePropsSubscriptionKey;
+	key: string;
+	fromFrame: number;
+	toFrame: number;
+	schema: SequenceSchema;
+};
 
 export type AddSequenceKeyframeRequest = {
 	fileName: string;
@@ -362,17 +436,46 @@ export type AddSequenceKeyframeRequest = {
 
 export type AddSequenceKeyframeResponse = SaveSequencePropsResponse;
 
-export type DeleteEffectKeyframeRequest = {
+export type AddSequenceKeyframe = Omit<AddSequenceKeyframeRequest, 'clientId'>;
+
+export type DeleteEffectKeyframe = {
 	fileName: string;
 	sequenceNodePath: SequencePropsSubscriptionKey;
 	effectIndex: number;
 	key: string;
 	frame: number;
 	schema: SequenceSchema;
+};
+
+export type MoveEffectKeyframe = {
+	fileName: string;
+	sequenceNodePath: SequencePropsSubscriptionKey;
+	effectIndex: number;
+	key: string;
+	fromFrame: number;
+	toFrame: number;
+	schema: SequenceSchema;
+};
+
+export type DeleteKeyframesRequest = {
+	sequenceKeyframes: DeleteSequenceKeyframe[];
+	effectKeyframes: DeleteEffectKeyframe[];
 	clientId: string;
 };
 
-export type DeleteEffectKeyframeResponse = SaveEffectPropsResponse;
+export type DeleteKeyframesResponse = {
+	success: true;
+};
+
+export type MoveKeyframesRequest = {
+	sequenceKeyframes: MoveSequenceKeyframe[];
+	effectKeyframes: MoveEffectKeyframe[];
+	clientId: string;
+};
+
+export type MoveKeyframesResponse = {
+	success: true;
+};
 
 export type AddEffectKeyframeRequest = {
 	fileName: string;
@@ -386,6 +489,58 @@ export type AddEffectKeyframeRequest = {
 };
 
 export type AddEffectKeyframeResponse = SaveEffectPropsResponse;
+
+export type AddEffectKeyframe = Omit<AddEffectKeyframeRequest, 'clientId'>;
+
+export type AddKeyframesRequest = {
+	sequenceKeyframes: AddSequenceKeyframe[];
+	effectKeyframes: AddEffectKeyframe[];
+	clientId: string;
+};
+
+export type AddKeyframesResponse = {
+	success: true;
+};
+
+export type KeyframeSettings =
+	| {
+			type: 'settings';
+			clamping:
+				| {
+						left: ExtrapolateType;
+						right: ExtrapolateType;
+				  }
+				| undefined;
+			posterize: number | undefined;
+	  }
+	| {
+			type: 'easing';
+			segmentIndex: number;
+			easing: KeyframeEasing;
+	  };
+
+export type UpdateSequenceKeyframeSettingsRequest = {
+	fileName: string;
+	nodePath: SequencePropsSubscriptionKey;
+	key: string;
+	settings: KeyframeSettings;
+	schema: SequenceSchema;
+	clientId: string;
+};
+
+export type UpdateSequenceKeyframeSettingsResponse = SaveSequencePropsResponse;
+
+export type UpdateEffectKeyframeSettingsRequest = {
+	fileName: string;
+	sequenceNodePath: SequencePropsSubscriptionKey;
+	effectIndex: number;
+	key: string;
+	settings: KeyframeSettings;
+	schema: SequenceSchema;
+	clientId: string;
+};
+
+export type UpdateEffectKeyframeSettingsResponse = SaveEffectPropsResponse;
 
 type BaseDeleteEffectRequestItem = {
 	fileName: string;
@@ -404,6 +559,24 @@ export type DeleteEffectRequestItem =
 export type DeleteEffectRequest = DeleteEffectRequestItem[];
 
 export type DeleteEffectResponse =
+	| {
+			success: true;
+	  }
+	| {
+			success: false;
+			reason: string;
+			stack: string;
+	  };
+
+export type PasteEffectsRequest = {
+	targetFileName: string;
+	targetSequenceNodePath: SequencePropsSubscriptionKey;
+	type: EffectClipboardPasteType;
+	effects: EffectClipboardSnapshot[];
+	clientId: string;
+};
+
+export type PasteEffectsResponse =
 	| {
 			success: true;
 	  }
@@ -447,11 +620,29 @@ export type DuplicateJsxNodeResponse =
 			stack: string;
 	  };
 
-export type InsertableCompositionElement = {
-	type: 'solid';
-	width: number;
-	height: number;
-};
+export type InsertableCompositionElement =
+	| {
+			type: 'solid';
+			width: number;
+			height: number;
+	  }
+	| {
+			type: 'component';
+			componentName: string;
+			importName: string;
+			importPath: string;
+			props: ComponentProp[];
+	  }
+	| {
+			type: 'asset';
+			assetType: 'image' | 'video' | 'gif' | 'audio';
+			src: string;
+			srcType: 'static' | 'remote';
+			dimensions: {
+				width: number;
+				height: number;
+			} | null;
+	  };
 
 export type InsertJsxElementRequest = {
 	compositionFile: string;
@@ -468,6 +659,17 @@ export type InsertJsxElementResponse =
 			reason: string;
 			stack: string;
 	  };
+
+export type DownloadRemoteAssetRequest = {
+	url: string;
+};
+
+export type DownloadRemoteAssetResponse = {
+	assetPath: string;
+	sizeInBytes: number;
+	created: boolean;
+	element: InsertableCompositionElement;
+};
 
 export type UpdateAvailableRequest = {};
 export type UpdateAvailableResponse = {
@@ -510,6 +712,14 @@ export type RedoResponse =
 			success: false;
 			reason: string;
 	  };
+
+export type LogStudioErrorRequest = {
+	name: string | null;
+	message: string;
+	stack: string | null;
+	symbolicatedStackFrames: SymbolicatedStackFrame[] | null;
+};
+export type LogStudioErrorResponse = {};
 
 export type ApiRoutes = {
 	'/api/composition-component-info': ReqAndRes<
@@ -564,23 +774,35 @@ export type ApiRoutes = {
 		SaveEffectPropsResponse
 	>;
 	'/api/add-effect': ReqAndRes<AddEffectRequest, AddEffectResponse>;
-	'/api/delete-sequence-keyframe': ReqAndRes<
-		DeleteSequenceKeyframeRequest,
-		DeleteSequenceKeyframeResponse
+	'/api/reorder-effect': ReqAndRes<ReorderEffectRequest, ReorderEffectResponse>;
+	'/api/reorder-sequence': ReqAndRes<
+		ReorderSequenceRequest,
+		ReorderSequenceResponse
 	>;
+	'/api/delete-keyframes': ReqAndRes<
+		DeleteKeyframesRequest,
+		DeleteKeyframesResponse
+	>;
+	'/api/move-keyframes': ReqAndRes<MoveKeyframesRequest, MoveKeyframesResponse>;
 	'/api/add-sequence-keyframe': ReqAndRes<
 		AddSequenceKeyframeRequest,
 		AddSequenceKeyframeResponse
-	>;
-	'/api/delete-effect-keyframe': ReqAndRes<
-		DeleteEffectKeyframeRequest,
-		DeleteEffectKeyframeResponse
 	>;
 	'/api/add-effect-keyframe': ReqAndRes<
 		AddEffectKeyframeRequest,
 		AddEffectKeyframeResponse
 	>;
+	'/api/add-keyframes': ReqAndRes<AddKeyframesRequest, AddKeyframesResponse>;
+	'/api/update-sequence-keyframe-settings': ReqAndRes<
+		UpdateSequenceKeyframeSettingsRequest,
+		UpdateSequenceKeyframeSettingsResponse
+	>;
+	'/api/update-effect-keyframe-settings': ReqAndRes<
+		UpdateEffectKeyframeSettingsRequest,
+		UpdateEffectKeyframeSettingsResponse
+	>;
 	'/api/delete-effect': ReqAndRes<DeleteEffectRequest, DeleteEffectResponse>;
+	'/api/paste-effects': ReqAndRes<PasteEffectsRequest, PasteEffectsResponse>;
 	'/api/delete-jsx-node': ReqAndRes<
 		DeleteJsxNodeRequest,
 		DeleteJsxNodeResponse
@@ -593,6 +815,10 @@ export type ApiRoutes = {
 		InsertJsxElementRequest,
 		InsertJsxElementResponse
 	>;
+	'/api/download-remote-asset': ReqAndRes<
+		DownloadRemoteAssetRequest,
+		DownloadRemoteAssetResponse
+	>;
 	'/api/update-available': ReqAndRes<
 		UpdateAvailableRequest,
 		UpdateAvailableResponse
@@ -603,6 +829,10 @@ export type ApiRoutes = {
 		DeleteStaticFileRequest,
 		DeleteStaticFileResponse
 	>;
+	'/api/rename-static-file': ReqAndRes<
+		RenameStaticFileRequest,
+		RenameStaticFileResponse
+	>;
 	'/api/restart-studio': ReqAndRes<RestartStudioRequest, RestartStudioResponse>;
 	'/api/install-package': ReqAndRes<
 		InstallPackageRequest,
@@ -610,4 +840,8 @@ export type ApiRoutes = {
 	>;
 	'/api/undo': ReqAndRes<UndoRequest, UndoResponse>;
 	'/api/redo': ReqAndRes<RedoRequest, RedoResponse>;
+	'/api/log-studio-error': ReqAndRes<
+		LogStudioErrorRequest,
+		LogStudioErrorResponse
+	>;
 };

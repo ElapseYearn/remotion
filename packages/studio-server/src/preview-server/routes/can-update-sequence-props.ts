@@ -12,6 +12,7 @@ import type {
 } from '@babel/types';
 import {RenderInternals} from '@remotion/renderer';
 import type {SubscribeToSequencePropsResponse} from '@remotion/studio-shared';
+import {isKeyframeInterpolationFunction} from '@remotion/studio-shared';
 import * as recast from 'recast';
 import type {
 	CanUpdateSequencePropsResponseTrue,
@@ -22,18 +23,27 @@ import type {
 } from 'remotion';
 import {parseAst} from '../../codemods/parse-ast';
 import {getAstNodePath} from '../../helpers/get-ast-node-path';
+import {toImportAgnosticNodePath} from '../../helpers/import-agnostic-node-path';
 import {resolveFileInsideProject} from '../../helpers/resolve-file-inside-project';
 import {JsxElementNotFoundAtLocationError} from '../jsx-element-not-found-at-location-error';
 import {computeEffectPropStatus} from './can-update-effect-props';
 
 type CanUpdatePropStatus = CanUpdateSequencePropStatus;
-type ComputedPropStatus = Extract<CanUpdatePropStatus, {canUpdate: false}>;
-type KeyframedPropStatus = Extract<ComputedPropStatus, {reason: 'keyframed'}>;
+type KeyframedPropStatus = Extract<CanUpdatePropStatus, {status: 'keyframed'}>;
 type PropKeyframes = KeyframedPropStatus['keyframes'];
 type PropEasing = KeyframedPropStatus['easing'];
 type PropClamping = KeyframedPropStatus['clamping'];
 type PropPosterize = KeyframedPropStatus['posterize'];
 type PropInterpolationFunction = KeyframedPropStatus['interpolationFunction'];
+
+const staticStatus = (codeValue: unknown): CanUpdatePropStatus => ({
+	status: 'static',
+	codeValue,
+});
+
+const computedStatus = (): CanUpdatePropStatus => ({
+	status: 'computed',
+});
 
 export const isStaticValue = (node: Expression): boolean => {
 	switch (node.type) {
@@ -322,10 +332,6 @@ const getInterpolationMetadata = (
 		const value = property.value as Expression;
 
 		if (key === 'easing') {
-			if (interpolationFunction === 'interpolateColors') {
-				return null;
-			}
-
 			const parsedEasing = getKeyframeEasingArray({
 				easingNode: value,
 				segments,
@@ -381,6 +387,7 @@ const getInterpolationMetadata = (
 
 const getInterpolationKeyframes = (
 	node: Expression,
+	ast: File,
 ):
 	| {
 			keyframes: PropKeyframes;
@@ -391,7 +398,7 @@ const getInterpolationKeyframes = (
 	  }
 	| undefined => {
 	if (node.type === 'TSAsExpression') {
-		return getInterpolationKeyframes(node.expression as Expression);
+		return getInterpolationKeyframes(node.expression as Expression, ast);
 	}
 
 	if (node.type !== 'CallExpression') {
@@ -401,17 +408,20 @@ const getInterpolationKeyframes = (
 	const callExpression = node as CallExpression;
 	if (
 		callExpression.callee.type !== 'Identifier' ||
-		(callExpression.callee.name !== 'interpolate' &&
-			callExpression.callee.name !== 'interpolateColors')
+		!isKeyframeInterpolationFunction(callExpression.callee.name)
 	) {
 		return undefined;
 	}
 
 	const interpolationFunction = callExpression.callee.name;
 
+	const frameArg = callExpression.arguments[0];
 	const inputArg = callExpression.arguments[1];
 	const outputArg = callExpression.arguments[2];
 	if (
+		!frameArg ||
+		frameArg.type === 'SpreadElement' ||
+		!isCurrentFrameIdentifier(frameArg as Expression, ast) ||
 		!inputArg ||
 		!outputArg ||
 		inputArg.type !== 'ArrayExpression' ||
@@ -470,15 +480,58 @@ const getInterpolationKeyframes = (
 	};
 };
 
-export const getComputedStatus = (node: Expression): CanUpdatePropStatus => {
-	const interpolation = getInterpolationKeyframes(node);
+const isUseCurrentFrameCall = (node: Expression): boolean => {
+	return (
+		node.type === 'CallExpression' &&
+		node.callee.type === 'Identifier' &&
+		node.callee.name === 'useCurrentFrame' &&
+		node.arguments.length === 0
+	);
+};
+
+const isCurrentFrameIdentifier = (node: Expression, ast: File): boolean => {
+	if (node.type === 'TSAsExpression') {
+		return isCurrentFrameIdentifier(node.expression as Expression, ast);
+	}
+
+	if (node.type !== 'Identifier') {
+		return false;
+	}
+
+	let hasUseCurrentFrameDeclaration = false;
+	let hasOtherDeclaration = false;
+
+	recast.types.visit(ast, {
+		visitVariableDeclarator(p) {
+			const {id, init} = p.node;
+			if (id.type !== 'Identifier' || id.name !== node.name) {
+				return this.traverse(p);
+			}
+
+			if (init && isUseCurrentFrameCall(init as Expression)) {
+				hasUseCurrentFrameDeclaration = true;
+			} else {
+				hasOtherDeclaration = true;
+			}
+
+			return false;
+		},
+	});
+
+	return hasUseCurrentFrameDeclaration && !hasOtherDeclaration;
+};
+
+export const getComputedStatus = (
+	node: Expression,
+	ast: File,
+): CanUpdatePropStatus => {
+	const interpolation = getInterpolationKeyframes(node, ast);
 	if (!interpolation) {
-		return {canUpdate: false, reason: 'computed'};
+		return computedStatus();
 	}
 
 	return {
-		canUpdate: false,
-		reason: 'keyframed',
+		status: 'keyframed',
 		interpolationFunction: interpolation.interpolationFunction,
 		keyframes: interpolation.keyframes,
 		easing: interpolation.easing,
@@ -489,6 +542,7 @@ export const getComputedStatus = (node: Expression): CanUpdatePropStatus => {
 
 const getPropsStatus = (
 	jsxElement: JSXOpeningElement,
+	ast: File,
 ): Record<string, CanUpdatePropStatus> => {
 	const props: Record<string, CanUpdatePropStatus> = {};
 
@@ -509,38 +563,32 @@ const getPropsStatus = (
 		const {value} = attr as JSXAttribute;
 
 		if (!value) {
-			props[name] = {canUpdate: true, codeValue: true};
+			props[name] = staticStatus(true);
 			continue;
 		}
 
 		if (value.type === 'StringLiteral') {
-			props[name] = {
-				canUpdate: true,
-				codeValue: (value as {value: string}).value,
-			};
+			props[name] = staticStatus((value as {value: string}).value);
 			continue;
 		}
 
 		if (value.type === 'JSXExpressionContainer') {
 			const {expression} = value;
 			if (expression.type === 'JSXEmptyExpression') {
-				props[name] = {canUpdate: false, reason: 'computed'};
+				props[name] = computedStatus();
 				continue;
 			}
 
 			if (!isStaticValue(expression)) {
-				props[name] = getComputedStatus(expression);
+				props[name] = getComputedStatus(expression, ast);
 				continue;
 			}
 
-			props[name] = {
-				canUpdate: true,
-				codeValue: extractStaticValue(expression),
-			};
+			props[name] = staticStatus(extractStaticValue(expression));
 			continue;
 		}
 
-		props[name] = {canUpdate: false, reason: 'computed'};
+		props[name] = computedStatus();
 	}
 
 	return props;
@@ -549,6 +597,7 @@ const getPropsStatus = (
 const getNodePathForRecastPath = (
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	recastPath: any,
+	ast: File,
 ): SequenceNodePath => {
 	const segments: Array<string | number> = [];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -560,10 +609,10 @@ const getNodePathForRecastPath = (
 
 	// Recast paths start with "root" which doesn't correspond to a real AST property
 	if (segments.length > 0 && segments[0] === 'root') {
-		return segments.slice(1);
+		return toImportAgnosticNodePath({ast, nodePath: segments.slice(1)});
 	}
 
-	return segments;
+	return toImportAgnosticNodePath({ast, nodePath: segments});
 };
 
 export const findJsxElementAtNodePath = (
@@ -591,7 +640,7 @@ export const findNodePathForJsxElement = (
 	recast.types.visit(ast, {
 		visitJSXOpeningElement(p) {
 			if (p.node === target) {
-				foundPath = getNodePathForRecastPath(p);
+				foundPath = getNodePathForRecastPath(p, ast);
 				return false;
 			}
 
@@ -612,7 +661,7 @@ export const lineColumnToNodePath = (
 		visitJSXOpeningElement(p) {
 			const {node} = p;
 			if (node.loc && node.loc.start.line === targetLine) {
-				foundPath = getNodePathForRecastPath(p);
+				foundPath = getNodePathForRecastPath(p, ast);
 				return false;
 			}
 
@@ -644,6 +693,7 @@ const validateStyleValue = (childKey: string, value: unknown): boolean => {
 
 const getNestedPropStatus = (
 	jsxElement: JSXOpeningElement,
+	ast: File,
 	parentKey: string,
 	childKey: string,
 ): CanUpdatePropStatus => {
@@ -656,11 +706,11 @@ const getNestedPropStatus = (
 
 	if (!attr || !attr.value) {
 		// Parent attribute doesn't exist, nested prop can be added
-		return {canUpdate: true, codeValue: undefined};
+		return staticStatus(undefined);
 	}
 
 	if (attr.value.type !== 'JSXExpressionContainer') {
-		return {canUpdate: false, reason: 'computed'};
+		return computedStatus();
 	}
 
 	const {expression} = attr.value;
@@ -669,7 +719,7 @@ const getNestedPropStatus = (
 		expression.type !== 'ObjectExpression'
 	) {
 		// Parent is not an object literal (e.g. style={myStyles})
-		return {canUpdate: false, reason: 'computed'};
+		return computedStatus();
 	}
 
 	const objExpr = expression as ObjectExpression;
@@ -682,31 +732,34 @@ const getNestedPropStatus = (
 
 	if (!prop) {
 		// Property not set in the object, can be added
-		return {canUpdate: true, codeValue: undefined};
+		return staticStatus(undefined);
 	}
 
 	const propValue = prop.value as Expression;
 	if (!isStaticValue(propValue)) {
-		return getComputedStatus(propValue);
+		return getComputedStatus(propValue, ast);
 	}
 
-	const codeValue = extractStaticValue(propValue);
-	if (!validateStyleValue(childKey, codeValue)) {
-		return {canUpdate: false, reason: 'computed'};
+	const propStatus = extractStaticValue(propValue);
+	if (!validateStyleValue(childKey, propStatus)) {
+		return computedStatus();
 	}
 
-	return {canUpdate: true, codeValue};
+	return staticStatus(propStatus);
 };
 
 const computeEffectsForJsx = ({
+	ast,
 	jsxElement,
 	effects,
 }: {
+	ast: File;
 	jsxElement: JSXOpeningElement;
 	effects: string[][];
 }) => {
 	return effects.map((effect, effectIndex) =>
 		computeEffectPropStatus({
+			ast,
 			jsx: jsxElement,
 			effectIndex,
 			keys: effect,
@@ -716,25 +769,28 @@ const computeEffectsForJsx = ({
 
 const computeSequenceOnlyPropsRecord = ({
 	jsxElement,
+	ast,
 	keys,
 }: {
 	jsxElement: JSXOpeningElement;
+	ast: File;
 	keys: string[];
 }): Record<string, CanUpdatePropStatus> => {
-	const allProps = getPropsStatus(jsxElement);
+	const allProps = getPropsStatus(jsxElement, ast);
 	const filteredProps: Record<string, CanUpdatePropStatus> = {};
 	for (const key of keys) {
 		const dotIndex = key.indexOf('.');
 		if (dotIndex !== -1) {
 			filteredProps[key] = getNestedPropStatus(
 				jsxElement,
+				ast,
 				key.slice(0, dotIndex),
 				key.slice(dotIndex + 1),
 			);
 		} else if (key in allProps) {
 			filteredProps[key] = allProps[key];
 		} else {
-			filteredProps[key] = {canUpdate: true, codeValue: undefined};
+			filteredProps[key] = staticStatus(undefined);
 		}
 	}
 
@@ -760,8 +816,8 @@ export const computeSequencePropsStatusFromContent = ({
 		throw new JsxElementNotFoundAtLocationError();
 	}
 
-	const filteredProps = computeSequenceOnlyPropsRecord({jsxElement, keys});
-	const effectsStatuses = computeEffectsForJsx({jsxElement, effects});
+	const filteredProps = computeSequenceOnlyPropsRecord({jsxElement, ast, keys});
+	const effectsStatuses = computeEffectsForJsx({ast, jsxElement, effects});
 
 	return {
 		canUpdate: true as const,

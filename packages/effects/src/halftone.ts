@@ -6,6 +6,7 @@ import {
 	type ParsedColorRgba,
 } from './color-utils.js';
 import {
+	assertOptionalBoolean,
 	assertEffectParamsObject,
 	assertOptionalColor,
 } from './validate-effect-param.js';
@@ -23,6 +24,7 @@ export const halftoneSchema = {
 		step: 1,
 		default: 20,
 		description: 'Dot size',
+		hiddenFromList: false,
 	},
 	dotSpacing: {
 		type: 'number',
@@ -31,11 +33,10 @@ export const halftoneSchema = {
 		step: 1,
 		default: 20,
 		description: 'Dot spacing',
+		hiddenFromList: false,
 	},
 	rotation: {
-		type: 'number',
-		min: -180,
-		max: 180,
+		type: 'rotation-degrees',
 		step: 1,
 		default: 0,
 		description: 'Rotation',
@@ -45,12 +46,14 @@ export const halftoneSchema = {
 		step: 1,
 		default: 0,
 		description: 'Offset X',
+		hiddenFromList: false,
 	},
 	offsetY: {
 		type: 'number',
 		step: 1,
 		default: 0,
 		description: 'Offset Y',
+		hiddenFromList: false,
 	},
 	shape: {
 		type: 'enum',
@@ -155,18 +158,6 @@ const assertOptionalEnum = <T extends string>(
 
 	if (typeof value !== 'string' || !variants.includes(value as T)) {
 		throw new TypeError(`"${name}" must be ${formatEnum(variants)}`);
-	}
-};
-
-const assertOptionalBoolean = (value: unknown, name: string): void => {
-	if (value === undefined) {
-		return;
-	}
-
-	if (typeof value !== 'boolean') {
-		throw new TypeError(
-			`"${name}" must be a boolean, but got ${JSON.stringify(value)}`,
-		);
 	}
 };
 

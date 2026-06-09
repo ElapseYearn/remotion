@@ -30,11 +30,13 @@ import {
 } from './DiscriminatedUnionSchemaTest';
 import {DynamicDuration, dynamicDurationSchema} from './DynamicDuration';
 import {EasingVisualizer} from './EasingVisualizer/EasingVisualizer';
+import {EffectCopySource, EffectCopyTarget} from './EffectCopyTestbed';
 import {EmojiTestbed} from './Emoji';
 import {ErrorOnFrame10} from './ErrorOnFrame10';
 import {ExperimentalControlsShowcase} from './ExperimentalControls';
 import {Expert} from './Expert';
 import {FontDemo} from './Fonts';
+import {FractionalSequenceVideo} from './FractionalSequenceVideo';
 import {Framer} from './Framer';
 import {FreezeExample} from './Freeze/FreezeExample';
 import {FreezePortion} from './FreezePortion/FreezePortion';
@@ -67,6 +69,7 @@ import {
 	HtmlInCanvasDocsDemo2DBlur,
 	HtmlInCanvasDocsMinimalWebGL,
 	HtmlInCanvasDocsMinimalWebGPU,
+	HtmlInCanvasPixelDensity,
 	HtmlInCanvasPrivacy,
 	HtmlInCanvasReactSvg,
 	LinearBlurTransitionDoc,
@@ -93,6 +96,7 @@ import {OffthreadVideoToCanvas} from './OffthreadVideoToCanvas';
 import {OrbScene} from './Orb';
 import {ShapesMorph} from './Paths/ShapesMorph';
 import {SlicePath} from './Paths/SlicePath';
+import {PosterizationComparison} from './Posterization';
 import {
 	PostmountExample,
 	PostmountWithStyles,
@@ -112,6 +116,7 @@ import {WidthHeightSequences} from './Sequence/WidthHeightSequences';
 import CircleTest from './Shapes/CircleTest';
 import EllipseTest from './Shapes/EllipseTest';
 import RectTest from './Shapes/RectTest';
+import ShapeEffectsTest from './Shapes/ShapeEffectsTest';
 import StarTest from './Shapes/StarTest';
 import TriangleTest from './Shapes/TriangleTest';
 import {SimpleImg} from './SimpleImg';
@@ -180,6 +185,7 @@ import {BrowserTest} from './BrowserTest';
 import {EdgeBlur} from './EdgeBlur/EdgeBlur';
 import {EffectsTestbed} from './EffectsTestbed/EffectsTestbed';
 import {HalftoneGradient} from './EffectsTestbed/HalftoneGradient';
+import {NoiseDisplacementText} from './EffectsTestbed/NoiseDisplacementText';
 import {VideoEffectsFastRefresh} from './EffectsTestbed/VideoEffectsFastRefresh';
 import {Empty} from './Empty';
 import {JumpCuts, SAMPLE_SECTIONS, calculateMetadataJumpCuts} from './JumpCuts';
@@ -214,6 +220,7 @@ import {StarburstExample} from './Starburst';
 import {Seek} from './StudioApis/Seek';
 import {SubframeAudio} from './SubframeAudio';
 import {TikTokTextBoxPlayground} from './TikTokTextbox/TikTokTextBox';
+import {TimelineNegativeFromResize} from './TimelineNegativeFromResize';
 import {FitTextOnNLines, fitTextOnNLinesSchema} from './Title/FitTextOnNLines';
 import {Issue7359FitTextOnNLines} from './Title/Issue7359FitTextOnNLines';
 import {TransitionRounding} from './TransitionRounding';
@@ -375,6 +382,30 @@ export const Index: React.FC = () => {
 					fps={30}
 					durationInFrames={60}
 				/>
+				<Composition
+					id="effect-copy-source"
+					component={EffectCopySource}
+					width={1080}
+					height={1080}
+					fps={30}
+					durationInFrames={120}
+				/>
+				<Composition
+					id="effect-copy-target"
+					component={EffectCopyTarget}
+					width={1080}
+					height={1080}
+					fps={30}
+					durationInFrames={120}
+				/>
+				<Composition
+					id="noise-displacement-text"
+					component={NoiseDisplacementText}
+					width={1920}
+					height={1080}
+					fps={30}
+					durationInFrames={120}
+				/>
 			</Folder>
 			<Folder name="dynamic-parameters">
 				<Composition
@@ -528,6 +559,16 @@ export const Index: React.FC = () => {
 					height={1080}
 					fps={30}
 					durationInFrames={100}
+				/>
+			</Folder>
+			<Folder name="documentation">
+				<Composition
+					id="posterization-comparison"
+					component={PosterizationComparison}
+					width={1800}
+					height={600}
+					fps={30}
+					durationInFrames={120}
 				/>
 			</Folder>
 			<Folder name="easing">
@@ -987,6 +1028,14 @@ export const Index: React.FC = () => {
 						durationInFrames={120}
 					/>
 					<Composition
+						id="html-in-canvas-pixel-density"
+						component={HtmlInCanvasPixelDensity}
+						fps={30}
+						height={80}
+						width={250}
+						durationInFrames={60}
+					/>
+					<Composition
 						id="html-in-canvas-compose-async-bitmap"
 						component={HtmlInCanvasComposeAsyncBitmap}
 						fps={30}
@@ -1294,6 +1343,14 @@ export const Index: React.FC = () => {
 						url: PLAY_RANGES_MEDIA_VIDEO_URL_DEFAULT,
 						playRanges: PLAY_RANGES_MEDIA_ZIP_DEFAULT,
 					}}
+				/>
+				<Composition
+					id="fractional-sequence-video"
+					component={FractionalSequenceVideo}
+					width={640}
+					height={360}
+					fps={24}
+					durationInFrames={600}
 				/>
 				<Composition
 					id="corrupt-video"
@@ -1819,6 +1876,14 @@ export const Index: React.FC = () => {
 					fps={30}
 					durationInFrames={150}
 				/>
+				<Composition
+					id="shape-effects-test"
+					component={ShapeEffectsTest}
+					width={1200}
+					height={630}
+					fps={30}
+					durationInFrames={150}
+				/>
 			</Folder>
 			<Folder name="Rive">
 				<Composition
@@ -2080,8 +2145,8 @@ export const Index: React.FC = () => {
 				durationInFrames={120}
 			/>
 			{/**
-     * 
-     * 
+     *
+     *
      * disabled for react   19
     <Folder name="Skia">
         <Composition
@@ -2350,6 +2415,14 @@ export const Index: React.FC = () => {
 				<Composition
 					id="starburst"
 					component={StarburstExample}
+					width={1080}
+					height={1080}
+					fps={30}
+					durationInFrames={90}
+				/>
+				<Composition
+					id="starburst-negative-from-resize"
+					component={TimelineNegativeFromResize}
 					width={1080}
 					height={1080}
 					fps={30}

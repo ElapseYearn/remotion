@@ -12,8 +12,10 @@ import {addSequenceStackTraces} from './enable-sequence-stack-traces.js';
 import {getCrossOriginValue} from './get-cross-origin-value.js';
 import {usePreload} from './prefetch.js';
 import {
+	fromField,
 	hiddenField,
 	sequenceVisualStyleSchema,
+	durationInFramesField,
 	type SequenceSchema,
 } from './sequence-field-schema.js';
 import type {SequenceProps} from './Sequence.js';
@@ -359,6 +361,8 @@ const CanvasImageWithPrivateProps = CanvasImage as React.ComponentType<
 >;
 
 export const imgSchema = {
+	durationInFrames: durationInFramesField,
+	from: fromField,
 	...sequenceVisualStyleSchema,
 	hidden: hiddenField,
 } as const satisfies SequenceSchema;
@@ -543,5 +547,9 @@ const ImgInner: React.FC<
  * @description Works just like a regular HTML img tag. When you use the <Img> tag, Remotion will ensure that the image is loaded before rendering the frame.
  * @see [Documentation](https://remotion.dev/docs/img)
  */
-export const Img = wrapInSchema(ImgInner, imgSchema);
+export const Img = wrapInSchema({
+	Component: ImgInner,
+	schema: imgSchema,
+	supportsEffects: true,
+});
 addSequenceStackTraces(Img);

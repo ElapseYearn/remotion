@@ -2,28 +2,68 @@ import {afterEach, expect, test} from 'bun:test';
 import {cleanup, render, waitFor} from '@testing-library/react';
 import React, {useCallback, useMemo} from 'react';
 import type {TSequence} from '../CompositionManager.js';
+import type {HtmlInCanvasOnPaintParams} from '../HtmlInCanvas.js';
 import {HtmlInCanvas} from '../HtmlInCanvas.js';
 import {Internals} from '../internals.js';
 import type {SequenceManagerContext} from '../SequenceManager.js';
 import {
 	SequenceManager,
-	VisualModeCodeValuesContext,
 	VisualModeDragOverridesContext,
+	VisualModePropStatusesContext,
 	VisualModeSettersContext,
 } from '../SequenceManager.js';
 import {WrapSequenceContext} from './wrap-sequence-context.js';
 
-const stub2dContext = () => ({
-	canvas: null as unknown as HTMLCanvasElement,
-	reset: () => undefined,
-	drawElementImage: () => new DOMMatrix(),
-	getImageData: () => ({
-		data: new Uint8ClampedArray(4),
-		width: 1,
-		height: 1,
-	}),
-	putImageData: () => undefined,
+class TestDOMMatrix {
+	private readonly scaleX: number;
+	private readonly scaleY: number;
+
+	public constructor(scaleX = 1, scaleY = 1) {
+		this.scaleX = scaleX;
+		this.scaleY = scaleY;
+	}
+
+	public scale(x: number, y: number) {
+		return new TestDOMMatrix(this.scaleX * x, this.scaleY * y);
+	}
+
+	public multiply(other: TestDOMMatrix) {
+		return new TestDOMMatrix(
+			this.scaleX * other.scaleX,
+			this.scaleY * other.scaleY,
+		);
+	}
+
+	public toString() {
+		return `matrix(${this.scaleX}, 0, 0, ${this.scaleY}, 0, 0)`;
+	}
+}
+
+Object.defineProperty(globalThis, 'DOMMatrix', {
+	configurable: true,
+	value: TestDOMMatrix,
 });
+
+const stub2dContext = () => {
+	let currentTransform = new DOMMatrix();
+
+	return {
+		canvas: null as unknown as HTMLCanvasElement,
+		reset: () => {
+			currentTransform = new DOMMatrix();
+		},
+		scale: (x: number, y: number) => {
+			currentTransform = currentTransform.scale(x, y);
+		},
+		drawElementImage: () => currentTransform,
+		getImageData: () => ({
+			data: new Uint8ClampedArray(4),
+			width: 1,
+			height: 1,
+		}),
+		putImageData: () => undefined,
+	};
+};
 
 Object.defineProperties(HTMLCanvasElement.prototype, {
 	getContext: {
@@ -93,9 +133,9 @@ const SequenceTestWrapper: React.FC<{
 		};
 	}, [registerSequence, unregisterSequence]);
 
-	const visualCodeValues = useMemo(
+	const visualPropStatuses = useMemo(
 		() => ({
-			codeValues: {},
+			propStatuses: {},
 		}),
 		[],
 	);
@@ -116,7 +156,7 @@ const SequenceTestWrapper: React.FC<{
 		() => ({
 			clearDragOverrides: () => undefined,
 			clearEffectDragOverrides: () => undefined,
-			setCodeValues: () => undefined,
+			setPropStatuses: () => undefined,
 			setDragOverrides: () => undefined,
 			setEffectDragOverrides: () => undefined,
 		}),
@@ -135,7 +175,7 @@ const SequenceTestWrapper: React.FC<{
 				}}
 			>
 				<SequenceManager.Provider value={sequenceManagerContext}>
-					<VisualModeCodeValuesContext.Provider value={visualCodeValues}>
+					<VisualModePropStatusesContext.Provider value={visualPropStatuses}>
 						<VisualModeDragOverridesContext.Provider
 							value={visualDragOverrides}
 						>
@@ -143,7 +183,7 @@ const SequenceTestWrapper: React.FC<{
 								{children}
 							</VisualModeSettersContext.Provider>
 						</VisualModeDragOverridesContext.Provider>
-					</VisualModeCodeValuesContext.Provider>
+					</VisualModePropStatusesContext.Provider>
 				</SequenceManager.Provider>
 			</Internals.RemotionEnvironmentContext>
 		</WrapSequenceContext>
@@ -219,4 +259,74 @@ test('<HtmlInCanvas> keeps refs current when the canvas remounts', async () => {
 	expect(nextCanvas).not.toBeNull();
 	expect(canvasRef.current).toBe(nextCanvas);
 	expect(registeredSequences[0]?.refForOutline?.current).toBe(nextCanvas);
+});
+
+test('<HtmlInCanvas> can use a higher backing density', async () => {
+	let paintParams: HtmlInCanvasOnPaintParams | undefined;
+
+	const {container} = render(
+		<SequenceTestWrapper onRegisterSequence={() => undefined}>
+			<HtmlInCanvas
+				width={50}
+				height={50}
+				pixelDensity={2}
+				onPaint={(params) => {
+					paintParams = params;
+				}}
+			>
+				<div>Test</div>
+			</HtmlInCanvas>
+		</SequenceTestWrapper>,
+	);
+
+	await waitFor(() => {
+		expect(container.querySelector('canvas')?.getAttribute('width')).toBe(
+			'100',
+		);
+	});
+
+	const canvas = container.querySelector('canvas')!;
+	expect(canvas.getAttribute('height')).toBe('100');
+	expect(canvas.style.width).toBe('50px');
+	expect(canvas.style.height).toBe('50px');
+
+	canvas.dispatchEvent(new Event('paint'));
+
+	await waitFor(() => {
+		expect(paintParams).not.toBeUndefined();
+	});
+
+	if (!paintParams) {
+		throw new Error('Expected paint params to be captured');
+	}
+
+	expect(paintParams.canvas.width).toBe(100);
+	expect(paintParams.canvas.height).toBe(100);
+	expect(paintParams.pixelDensity).toBe(2);
+});
+
+test('<HtmlInCanvas> does not apply pixel density to the live DOM transform', async () => {
+	const {container} = render(
+		<SequenceTestWrapper onRegisterSequence={() => undefined}>
+			<HtmlInCanvas width={50} height={50} pixelDensity={2}>
+				<div>Test</div>
+			</HtmlInCanvas>
+		</SequenceTestWrapper>,
+	);
+
+	await waitFor(() => {
+		expect(container.querySelector('canvas')?.getAttribute('width')).toBe(
+			'100',
+		);
+	});
+
+	const canvas = container.querySelector('canvas')!;
+	canvas.dispatchEvent(new Event('paint'));
+
+	const htmlInCanvasElement = canvas.querySelector('div');
+	await waitFor(() => {
+		expect(htmlInCanvasElement?.style.transform).toBe(
+			new DOMMatrix().toString(),
+		);
+	});
 });

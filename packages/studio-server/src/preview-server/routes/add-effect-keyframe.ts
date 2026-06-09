@@ -64,6 +64,7 @@ export const addEffectKeyframeHandler: ApiHandler<
 			input: fileContents,
 			sequenceNodePath: sequenceNodePath.nodePath,
 			effectIndex,
+			schema,
 			updates: [
 				{
 					key,
@@ -127,6 +128,7 @@ export const addEffectKeyframeHandler: ApiHandler<
 		}
 
 		return computeEffectPropStatus({
+			ast,
 			jsx,
 			effectIndex,
 			keys: getAllSchemaKeys(schema),

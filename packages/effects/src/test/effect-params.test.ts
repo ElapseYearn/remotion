@@ -3,6 +3,7 @@ import {barrelDistortion} from '../barrel-distortion/index.js';
 import {blur} from '../blur/index.js';
 import {brightness} from '../brightness.js';
 import {chromaticAberration} from '../chromatic-aberration/index.js';
+import {colorKey} from '../color-key.js';
 import {contrast} from '../contrast.js';
 import {dotGrid} from '../dot-grid.js';
 import {dropShadow} from '../drop-shadow/index.js';
@@ -15,8 +16,13 @@ import {halftoneLinearGradient} from '../halftone-linear-gradient.js';
 import {halftone} from '../halftone.js';
 import {hue} from '../hue.js';
 import {invert} from '../invert.js';
+import {linearProgressiveBlur} from '../linear-progressive-blur/index.js';
 import {lines} from '../lines.js';
 import {mirror} from '../mirror.js';
+import {
+	noiseDisplacement,
+	type NoiseDisplacementParams,
+} from '../noise-displacement.js';
 import {noise} from '../noise.js';
 import {pixelDissolve} from '../pixel-dissolve.js';
 import {rings} from '../rings.js';
@@ -42,6 +48,9 @@ test('@remotion/effects expose documentation links', () => {
 	);
 	expect(chromaticAberration().definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/chromatic-aberration',
+	);
+	expect(colorKey().definition.documentationLink).toBe(
+		'https://www.remotion.dev/docs/effects/color-key',
 	);
 	expect(brightness().definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/brightness',
@@ -85,6 +94,9 @@ test('@remotion/effects expose documentation links', () => {
 	expect(lines().definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/lines',
 	);
+	expect(linearProgressiveBlur().definition.documentationLink).toBe(
+		'https://www.remotion.dev/docs/effects/linear-progressive-blur',
+	);
 	expect(dotGrid().definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/dot-grid',
 	);
@@ -94,6 +106,10 @@ test('@remotion/effects expose documentation links', () => {
 	expect(noise().definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/noise',
 	);
+	expect(
+		noiseDisplacement({center: [0.5, 0.5], radius: 0.25}).definition
+			.documentationLink,
+	).toBe('https://www.remotion.dev/docs/effects/noise-displacement');
 	expect(rings().definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/rings',
 	);
@@ -142,12 +158,14 @@ test('@remotion/effects expose API names as Studio labels', () => {
 	expect(barrelDistortion().definition.label).toBe('barrelDistortion()');
 	expect(blur({radius: 1}).definition.label).toBe('blur()');
 	expect(chromaticAberration().definition.label).toBe('chromaticAberration()');
+	expect(colorKey().definition.label).toBe('colorKey()');
 	expect(brightness().definition.label).toBe('brightness()');
 	expect(contrast().definition.label).toBe('contrast()');
 	expect(duotone().definition.label).toBe('duotone()');
 	expect(evolve().definition.label).toBe('evolve()');
 	expect(dropShadow().definition.label).toBe('dropShadow()');
 	expect(fisheye().definition.label).toBe('fisheye()');
+	expect(glow().definition.label).toBe('glow()');
 	expect(grayscale().definition.label).toBe('grayscale()');
 	expect(halftone().definition.label).toBe('halftone()');
 	expect(halftoneLinearGradient().definition.label).toBe(
@@ -157,9 +175,15 @@ test('@remotion/effects expose API names as Studio labels', () => {
 	expect(hue().definition.label).toBe('hue()');
 	expect(invert().definition.label).toBe('invert()');
 	expect(lines().definition.label).toBe('lines()');
+	expect(linearProgressiveBlur().definition.label).toBe(
+		'linearProgressiveBlur()',
+	);
 	expect(dotGrid().definition.label).toBe('dotGrid()');
 	expect(mirror().definition.label).toBe('mirror()');
 	expect(noise().definition.label).toBe('noise()');
+	expect(
+		noiseDisplacement({center: [0.5, 0.5], radius: 0.25}).definition.label,
+	).toBe('noiseDisplacement()');
 	expect(rings().definition.label).toBe('rings()');
 	expect(saturation().definition.label).toBe('saturation()');
 	expect(scanlines().definition.label).toBe('scanlines()');
@@ -283,6 +307,82 @@ test('chromaticAberration() parameters produce distinct effect keys', () => {
 	expect(
 		new Set([none.effectKey, shifted.effectKey, angled.effectKey]).size,
 	).toBe(3);
+});
+
+test('colorKey() accepts default params', () => {
+	expect(() => colorKey()).not.toThrow();
+});
+
+test('colorKey() rejects empty keyColor strings', () => {
+	expect(() => colorKey({keyColor: ''})).toThrow(
+		'"keyColor" must be a non-empty string, but got ""',
+	);
+});
+
+test('colorKey() rejects non-finite similarity', () => {
+	expect(() => colorKey({similarity: Number.NaN})).toThrow(
+		'"similarity" must be a finite number',
+	);
+});
+
+test('colorKey() rejects similarity below range', () => {
+	expect(() => colorKey({similarity: -0.1})).toThrow(
+		'"similarity" must be >= 0',
+	);
+});
+
+test('colorKey() rejects similarity above range', () => {
+	expect(() => colorKey({similarity: 1.1})).toThrow(
+		'"similarity" must be <= 1',
+	);
+});
+
+test('colorKey() rejects non-finite smoothness', () => {
+	expect(() => colorKey({smoothness: Number.NaN})).toThrow(
+		'"smoothness" must be a finite number',
+	);
+});
+
+test('colorKey() rejects smoothness below range', () => {
+	expect(() => colorKey({smoothness: -0.1})).toThrow(
+		'"smoothness" must be >= 0',
+	);
+});
+
+test('colorKey() rejects smoothness above range', () => {
+	expect(() => colorKey({smoothness: 1.1})).toThrow(
+		'"smoothness" must be <= 1',
+	);
+});
+
+test('colorKey() rejects spillSuppression below range', () => {
+	expect(() => colorKey({spillSuppression: -0.1})).toThrow(
+		'"spillSuppression" must be >= 0',
+	);
+});
+
+test('colorKey() rejects spillSuppression above range', () => {
+	expect(() => colorKey({spillSuppression: 1.1})).toThrow(
+		'"spillSuppression" must be <= 1',
+	);
+});
+
+test('colorKey() parameters produce distinct effect keys', () => {
+	const defaults = colorKey();
+	const blue = colorKey({keyColor: '#0000ff'});
+	const tighterSimilarity = colorKey({similarity: 0.1});
+	const softerEdges = colorKey({smoothness: 0.3});
+	const moreSpill = colorKey({spillSuppression: 0.5});
+
+	expect(
+		new Set([
+			defaults.effectKey,
+			blue.effectKey,
+			tighterSimilarity.effectKey,
+			softerEdges.effectKey,
+			moreSpill.effectKey,
+		]).size,
+	).toBe(5);
 });
 
 test('tint() throws when color is not passed', () => {
@@ -417,6 +517,12 @@ test('waves() rejects non-positive thickness', () => {
 	);
 });
 
+test('waves() rejects non-boolean maskToSourceAlpha', () => {
+	expect(() => waves({maskToSourceAlpha: 'yes' as unknown as boolean})).toThrow(
+		'"maskToSourceAlpha" must be a boolean',
+	);
+});
+
 test('waves() parameters produce distinct effect keys', () => {
 	const defaults = waves();
 	const colored = waves({colors: ['#ffffff', 'transparent']});
@@ -428,6 +534,7 @@ test('waves() parameters produce distinct effect keys', () => {
 	const stronger = waves({amplitude: 30});
 	const longer = waves({wavelength: 220});
 	const phased = waves({phase: 90});
+	const masked = waves({maskToSourceAlpha: true});
 
 	expect(
 		new Set([
@@ -441,8 +548,9 @@ test('waves() parameters produce distinct effect keys', () => {
 			stronger.effectKey,
 			longer.effectKey,
 			phased.effectKey,
+			masked.effectKey,
 		]).size,
-	).toBe(10);
+	).toBe(11);
 });
 
 test('zigzag() accepts default params', () => {
@@ -482,6 +590,12 @@ test('zigzag() rejects non-positive thickness', () => {
 	);
 });
 
+test('zigzag() rejects non-boolean maskToSourceAlpha', () => {
+	expect(() =>
+		zigzag({maskToSourceAlpha: 'yes' as unknown as boolean}),
+	).toThrow('"maskToSourceAlpha" must be a boolean');
+});
+
 test('zigzag() parameters produce distinct effect keys', () => {
 	const defaults = zigzag();
 	const colored = zigzag({colors: ['#ffffff', 'transparent']});
@@ -492,6 +606,7 @@ test('zigzag() parameters produce distinct effect keys', () => {
 	const shifted = zigzag({offset: 10});
 	const stronger = zigzag({amplitude: 30});
 	const longer = zigzag({wavelength: 220});
+	const masked = zigzag({maskToSourceAlpha: true});
 
 	expect(
 		new Set([
@@ -504,8 +619,9 @@ test('zigzag() parameters produce distinct effect keys', () => {
 			shifted.effectKey,
 			stronger.effectKey,
 			longer.effectKey,
+			masked.effectKey,
 		]).size,
-	).toBe(9);
+	).toBe(10);
 });
 
 test('whiteNoise() accepts default params', () => {
@@ -882,6 +998,7 @@ test('vignette() accepts valid color mode params', () => {
 			roundness: 0.9,
 			color: '#221144',
 			mode: 'color',
+			center: [0.3, 0.8],
 		}),
 	).not.toThrow();
 });
@@ -913,6 +1030,17 @@ test('vignette() rejects roundness above range', () => {
 	expect(() => vignette({roundness: 1.1})).toThrow('"roundness" must be <= 1');
 });
 
+test('vignette() rejects invalid center', () => {
+	const invalidCenter = [0.5] as unknown as [number, number];
+	expect(() => vignette({center: invalidCenter})).toThrow(
+		'"center" must be a [number, number] tuple',
+	);
+});
+
+test('vignette() accepts center outside the unit square', () => {
+	expect(() => vignette({center: [-0.25, 1.25]})).not.toThrow();
+});
+
 test('vignette() rejects empty color strings', () => {
 	expect(() => vignette({color: ''})).toThrow(
 		'"color" must be a non-empty string, but got ""',
@@ -938,6 +1066,7 @@ test('vignette() parameters produce distinct effect keys', () => {
 	const rectangularVignette = vignette({roundness: 0});
 	const coloredVignette = vignette({color: '#0000ff'});
 	const alphaVignette = vignette({mode: 'alpha'});
+	const shiftedVignette = vignette({center: [0.3, 0.7]});
 
 	expect(
 		new Set([
@@ -948,8 +1077,9 @@ test('vignette() parameters produce distinct effect keys', () => {
 			rectangularVignette.effectKey,
 			coloredVignette.effectKey,
 			alphaVignette.effectKey,
+			shiftedVignette.effectKey,
 		]).size,
-	).toBe(7);
+	).toBe(8);
 });
 
 test('halftone() accepts default params', () => {
@@ -1028,6 +1158,15 @@ test('halftoneLinearGradient() accepts default params', () => {
 	expect(() => halftoneLinearGradient()).not.toThrow();
 });
 
+test('halftoneLinearGradient() connects its stop position controls', () => {
+	expect(
+		halftoneLinearGradient().definition.schema.firstStopPosition,
+	).toMatchObject({
+		type: 'uv-coordinate',
+		lineTo: 'secondStopPosition',
+	});
+});
+
 test('halftoneLinearGradient() rejects first stop dot size below range', () => {
 	expect(() => halftoneLinearGradient({firstStopDotSize: -1})).toThrow(
 		'"firstStopDotSize" must be >= 0',
@@ -1088,6 +1227,14 @@ test('halftoneLinearGradient() rejects dotColor for source color mode', () => {
 	).toThrow('"dotColor" can only be set when "colorMode" is "solid"');
 });
 
+test('halftoneLinearGradient() rejects non-boolean maskToSourceAlpha', () => {
+	expect(() =>
+		halftoneLinearGradient({
+			maskToSourceAlpha: 'yes' as unknown as boolean,
+		}),
+	).toThrow('"maskToSourceAlpha" must be a boolean');
+});
+
 test('halftoneLinearGradient() parameters produce distinct effect keys', () => {
 	const defaultGradient = halftoneLinearGradient();
 	const shiftedFirstStop = halftoneLinearGradient({firstStopDotSize: 8});
@@ -1096,6 +1243,7 @@ test('halftoneLinearGradient() parameters produce distinct effect keys', () => {
 		firstStopPosition: [0.2, 0.5],
 	});
 	const sourceColor = halftoneLinearGradient({colorMode: 'source'});
+	const masked = halftoneLinearGradient({maskToSourceAlpha: true});
 
 	expect(
 		new Set([
@@ -1104,8 +1252,9 @@ test('halftoneLinearGradient() parameters produce distinct effect keys', () => {
 			shiftedSecondStop.effectKey,
 			shiftedFirstPosition.effectKey,
 			sourceColor.effectKey,
+			masked.effectKey,
 		]).size,
-	).toBe(5);
+	).toBe(6);
 });
 
 test('dotGrid() accepts default params', () => {
@@ -1266,6 +1415,140 @@ test('noise() parameters produce distinct effect keys', () => {
 	).toBe(4);
 });
 
+test('noiseDisplacement() accepts required params', () => {
+	expect(() =>
+		noiseDisplacement({
+			center: [0.5, 0.5],
+			radius: 0.2,
+		}),
+	).not.toThrow();
+});
+
+test('noiseDisplacement() accepts all params', () => {
+	expect(() =>
+		noiseDisplacement({
+			center: [0.4, 0.6],
+			radius: 0.25,
+			strength: 40,
+			seed: 3,
+			grainSize: 12,
+			passes: 8,
+			blur: 2,
+			feather: 0.4,
+			biasDirection: 225,
+			biasAmount: 0.2,
+		}),
+	).not.toThrow();
+});
+
+test('noiseDisplacement() rejects missing center', () => {
+	expect(() =>
+		noiseDisplacement({radius: 0.2} as NoiseDisplacementParams),
+	).toThrow('"center" must be a [number, number] tuple');
+});
+
+test('noiseDisplacement() rejects invalid center', () => {
+	expect(() =>
+		noiseDisplacement({
+			center: [0.5] as unknown as [number, number],
+			radius: 0.2,
+		}),
+	).toThrow('"center" must be a [number, number] tuple');
+});
+
+test('noiseDisplacement() rejects center outside unit range', () => {
+	expect(() => noiseDisplacement({center: [-0.1, 0.5], radius: 0.2})).toThrow(
+		'"center[0]" must be >= 0',
+	);
+	expect(() => noiseDisplacement({center: [0.5, 1.1], radius: 0.2})).toThrow(
+		'"center[1]" must be <= 1',
+	);
+});
+
+test('noiseDisplacement() rejects missing radius', () => {
+	expect(() =>
+		noiseDisplacement({
+			center: [0.5, 0.5],
+		} as unknown as NoiseDisplacementParams),
+	).toThrow('"radius" must be a finite number');
+});
+
+test('noiseDisplacement() rejects invalid radius', () => {
+	expect(() => noiseDisplacement({center: [0.5, 0.5], radius: 0})).toThrow(
+		'"radius" must be greater than 0',
+	);
+	expect(() => noiseDisplacement({center: [0.5, 0.5], radius: 1.1})).toThrow(
+		'"radius" must be <= 1',
+	);
+});
+
+test('noiseDisplacement() rejects invalid randomization params', () => {
+	expect(() =>
+		noiseDisplacement({center: [0.5, 0.5], radius: 0.2, grainSize: 0}),
+	).toThrow('"grainSize" must be greater than 0');
+	expect(() =>
+		noiseDisplacement({center: [0.5, 0.5], radius: 0.2, passes: 2.5}),
+	).toThrow('"passes" must be an integer');
+	expect(() =>
+		noiseDisplacement({center: [0.5, 0.5], radius: 0.2, passes: 13}),
+	).toThrow('"passes" must be <= 12');
+	expect(() =>
+		noiseDisplacement({center: [0.5, 0.5], radius: 0.2, feather: 1.1}),
+	).toThrow('"feather" must be <= 1');
+	expect(() =>
+		noiseDisplacement({center: [0.5, 0.5], radius: 0.2, biasAmount: -0.1}),
+	).toThrow('"biasAmount" must be >= 0');
+});
+
+test('noiseDisplacement() parameters produce distinct effect keys', () => {
+	const base = noiseDisplacement({center: [0.5, 0.5], radius: 0.2});
+	const moved = noiseDisplacement({center: [0.4, 0.5], radius: 0.2});
+	const wider = noiseDisplacement({center: [0.5, 0.5], radius: 0.3});
+	const stronger = noiseDisplacement({
+		center: [0.5, 0.5],
+		radius: 0.2,
+		strength: 48,
+	});
+	const seeded = noiseDisplacement({center: [0.5, 0.5], radius: 0.2, seed: 1});
+	const chunkier = noiseDisplacement({
+		center: [0.5, 0.5],
+		radius: 0.2,
+		grainSize: 16,
+	});
+	const smeared = noiseDisplacement({
+		center: [0.5, 0.5],
+		radius: 0.2,
+		passes: 8,
+	});
+	const blurred = noiseDisplacement({center: [0.5, 0.5], radius: 0.2, blur: 2});
+	const feathered = noiseDisplacement({
+		center: [0.5, 0.5],
+		radius: 0.2,
+		feather: 0.5,
+	});
+	const biased = noiseDisplacement({
+		center: [0.5, 0.5],
+		radius: 0.2,
+		biasDirection: 90,
+		biasAmount: 0.2,
+	});
+
+	expect(
+		new Set([
+			base.effectKey,
+			moved.effectKey,
+			wider.effectKey,
+			stronger.effectKey,
+			seeded.effectKey,
+			chunkier.effectKey,
+			smeared.effectKey,
+			blurred.effectKey,
+			feathered.effectKey,
+			biased.effectKey,
+		]).size,
+	).toBe(10);
+});
+
 test('saturation() accepts default params', () => {
 	expect(() => saturation()).not.toThrow();
 });
@@ -1419,6 +1702,12 @@ test('lines() rejects non-finite offset', () => {
 	);
 });
 
+test('lines() rejects non-boolean maskToSourceAlpha', () => {
+	expect(() => lines({maskToSourceAlpha: 'yes' as unknown as boolean})).toThrow(
+		'"maskToSourceAlpha" must be a boolean',
+	);
+});
+
 test('lines() parameters produce distinct effect keys', () => {
 	const defaultLines = lines();
 	const colored = lines({colors: ['#ffffff', 'transparent']});
@@ -1427,6 +1716,7 @@ test('lines() parameters produce distinct effect keys', () => {
 	const gapped = lines({gap: 24});
 	const angled = lines({angle: 45});
 	const shifted = lines({offset: 10});
+	const masked = lines({maskToSourceAlpha: true});
 
 	expect(
 		new Set([
@@ -1437,8 +1727,69 @@ test('lines() parameters produce distinct effect keys', () => {
 			gapped.effectKey,
 			angled.effectKey,
 			shifted.effectKey,
+			masked.effectKey,
 		]).size,
-	).toBe(7);
+	).toBe(8);
+});
+
+test('linearProgressiveBlur() accepts default params', () => {
+	expect(() => linearProgressiveBlur()).not.toThrow();
+});
+
+test('linearProgressiveBlur() connects its start and end controls', () => {
+	expect(linearProgressiveBlur().definition.schema.start).toMatchObject({
+		type: 'uv-coordinate',
+		lineTo: 'end',
+	});
+});
+
+test('linearProgressiveBlur() rejects invalid start', () => {
+	expect(() =>
+		linearProgressiveBlur({
+			start: [0.5] as unknown as [number, number],
+		}),
+	).toThrow('"start" must be a [number, number] tuple');
+});
+
+test('linearProgressiveBlur() rejects invalid end', () => {
+	expect(() =>
+		linearProgressiveBlur({
+			end: [0.5, Number.NaN],
+		}),
+	).toThrow('"end" must be a [number, number] tuple');
+});
+
+test('linearProgressiveBlur() rejects non-finite blur radii', () => {
+	expect(() => linearProgressiveBlur({startBlur: Number.NaN})).toThrow(
+		'"startBlur" must be a finite number',
+	);
+	expect(() => linearProgressiveBlur({endBlur: Number.NaN})).toThrow(
+		'"endBlur" must be a finite number',
+	);
+});
+
+test('linearProgressiveBlur() clamps negative blur radii', () => {
+	const clamped = linearProgressiveBlur({startBlur: -10, endBlur: -1});
+	const zero = linearProgressiveBlur({startBlur: 0, endBlur: 0});
+	expect(clamped.effectKey).toBe(zero.effectKey);
+});
+
+test('linearProgressiveBlur() parameters produce distinct effect keys', () => {
+	const defaults = linearProgressiveBlur();
+	const shiftedStart = linearProgressiveBlur({start: [0.2, 0.5]});
+	const shiftedEnd = linearProgressiveBlur({end: [0.8, 0.5]});
+	const moreStartBlur = linearProgressiveBlur({startBlur: 12});
+	const moreEndBlur = linearProgressiveBlur({endBlur: 80});
+
+	expect(
+		new Set([
+			defaults.effectKey,
+			shiftedStart.effectKey,
+			shiftedEnd.effectKey,
+			moreStartBlur.effectKey,
+			moreEndBlur.effectKey,
+		]).size,
+	).toBe(5);
 });
 
 test('rings() accepts default params', () => {
@@ -1502,6 +1853,12 @@ test('rings() rejects non-finite offset', () => {
 	);
 });
 
+test('rings() rejects non-boolean maskToSourceAlpha', () => {
+	expect(() => rings({maskToSourceAlpha: 'yes' as unknown as boolean})).toThrow(
+		'"maskToSourceAlpha" must be a boolean',
+	);
+});
+
 test('rings() parameters produce distinct effect keys', () => {
 	const defaultRings = rings();
 	const colored = rings({colors: ['#ffffff', 'transparent']});
@@ -1509,6 +1866,7 @@ test('rings() parameters produce distinct effect keys', () => {
 	const thin = rings({thickness: 20});
 	const gapped = rings({gap: 24});
 	const shifted = rings({offset: 10});
+	const masked = rings({maskToSourceAlpha: true});
 
 	expect(
 		new Set([
@@ -1518,8 +1876,9 @@ test('rings() parameters produce distinct effect keys', () => {
 			thin.effectKey,
 			gapped.effectKey,
 			shifted.effectKey,
+			masked.effectKey,
 		]).size,
-	).toBe(6);
+	).toBe(7);
 });
 
 test('hue() accepts default params', () => {

@@ -6,6 +6,7 @@ import {EffectsBarrelDistortionPreview} from '../../components/effects/effects-b
 import {EffectsBlurPreview} from '../../components/effects/effects-blur-preview';
 import {EffectsBrightnessPreview} from '../../components/effects/effects-brightness-preview';
 import {EffectsChromaticAberrationPreview} from '../../components/effects/effects-chromatic-aberration-preview';
+import {EffectsColorKeyPreview} from '../../components/effects/effects-color-key-preview';
 import {EffectsContrastPreview} from '../../components/effects/effects-contrast-preview';
 import {EffectsDotGridPreview} from '../../components/effects/effects-dot-grid-preview';
 import {EffectsDropShadowPreview} from '../../components/effects/effects-drop-shadow-preview';
@@ -19,8 +20,14 @@ import {EffectsHalftonePreview} from '../../components/effects/effects-halftone-
 import {EffectsHuePreview} from '../../components/effects/effects-hue-preview';
 import {EffectsInvertPreview} from '../../components/effects/effects-invert-preview';
 import {EffectsLightLeakPreview} from '../../components/effects/effects-light-leak-preview';
+import {EffectsLinearProgressiveBlurPreview} from '../../components/effects/effects-linear-progressive-blur-preview';
 import {EffectsLinesPreview} from '../../components/effects/effects-lines-preview';
 import {EffectsMirrorPreview} from '../../components/effects/effects-mirror-preview';
+import {
+	EffectsNoiseDisplacementPreview,
+	NOISE_DISPLACEMENT_PREVIEW_PARAMS,
+	NoiseDisplacementTextSource,
+} from '../../components/effects/effects-noise-displacement-preview';
 import {EffectsNoisePreview} from '../../components/effects/effects-noise-preview';
 import {EffectsPixelDissolvePreview} from '../../components/effects/effects-pixel-dissolve-preview';
 import {EffectsRingsPreview} from '../../components/effects/effects-rings-preview';
@@ -111,6 +118,18 @@ export const RemotionRoot: React.FC = () => {
 					width={1280}
 					height={720}
 					defaultProps={{amount: 1.5}}
+				/>
+				<Still
+					id="effects-color-key-preview"
+					component={EffectsColorKeyPreview}
+					width={1280}
+					height={720}
+					defaultProps={{
+						keyColor: '#00ff00',
+						similarity: 0.45,
+						smoothness: 0.08,
+						spillSuppression: 0.25,
+					}}
 				/>
 				<Still
 					id="effects-duotone-preview"
@@ -206,6 +225,7 @@ export const RemotionRoot: React.FC = () => {
 						roundness: 1,
 						mode: 'color',
 						color: '#000000',
+						center: [0.5, 0.5],
 					}}
 				/>
 				<Still
@@ -268,6 +288,18 @@ export const RemotionRoot: React.FC = () => {
 					width={1280}
 					height={720}
 					defaultProps={{radius: 40, horizontal: true, vertical: true}}
+				/>
+				<Still
+					id="effects-linear-progressive-blur-preview"
+					component={EffectsLinearProgressiveBlurPreview}
+					width={1280}
+					height={720}
+					defaultProps={{
+						start: [0, 0.5],
+						end: [1, 0.5],
+						startBlur: 0,
+						endBlur: 50,
+					}}
 				/>
 				<Still
 					id="effects-wave-preview"
@@ -345,6 +377,19 @@ export const RemotionRoot: React.FC = () => {
 						seed: 0,
 						premultiply: false,
 					}}
+				/>
+				<Still
+					id="effects-noise-displacement-text-source"
+					component={NoiseDisplacementTextSource}
+					width={1920}
+					height={1080}
+				/>
+				<Still
+					id="effects-noise-displacement-preview"
+					component={EffectsNoiseDisplacementPreview}
+					width={1280}
+					height={720}
+					defaultProps={NOISE_DISPLACEMENT_PREVIEW_PARAMS}
 				/>
 				<Still
 					id="effects-white-noise-preview"

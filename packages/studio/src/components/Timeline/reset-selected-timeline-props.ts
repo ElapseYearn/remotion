@@ -1,6 +1,7 @@
 import type {
-	CodeValues,
+	CanUpdateSequencePropStatus,
 	OverrideIdToNodePaths,
+	PropStatuses,
 	SequenceFieldSchema,
 	SequencePropsSubscriptionKey,
 	SequenceSchema,
@@ -9,7 +10,7 @@ import type {
 import {Internals} from 'remotion';
 import {findTrackForNodePathInfo} from './find-track-for-node-path-info';
 import {saveEffectProp} from './save-effect-prop';
-import type {SetCodeValues} from './save-sequence-prop';
+import type {SetPropStatuses} from './save-sequence-prop';
 import {saveSequenceProps} from './save-sequence-prop';
 import type {TimelineSelection} from './TimelineSelection';
 
@@ -36,13 +37,27 @@ type EffectPropResetTarget = {
 
 type TimelinePropResetTarget = SequencePropResetTarget | EffectPropResetTarget;
 
+type PropResetSelection = TimelineSelection & {
+	type: 'sequence-prop' | 'sequence-effect-prop';
+};
+
 const isPropResetSelection = (
 	selection: TimelineSelection,
-): selection is TimelineSelection & {
-	type: 'sequence-prop' | 'sequence-effect-prop';
-} =>
+): selection is PropResetSelection =>
 	selection.type === 'sequence-prop' ||
 	selection.type === 'sequence-effect-prop';
+
+function assertPropResetSelections(
+	selections: readonly TimelineSelection[],
+): asserts selections is readonly PropResetSelection[] {
+	for (const selection of selections) {
+		if (!isPropResetSelection(selection)) {
+			throw new Error(
+				`Assertion failed: Cannot reset timeline selection of type ${selection.type}`,
+			);
+		}
+	}
+}
 
 const isVisibleFieldSchema = (
 	fieldSchema: SequenceFieldSchema | undefined,
@@ -50,13 +65,38 @@ const isVisibleFieldSchema = (
 	fieldSchema !== undefined && fieldSchema.type !== 'hidden';
 
 const isNonDefaultCodeValue = ({
-	codeValue,
+	propStatus,
 	defaultValue,
 }: {
-	readonly codeValue: unknown;
+	readonly propStatus: unknown;
 	readonly defaultValue: unknown;
 }) =>
-	JSON.stringify(codeValue ?? defaultValue) !== JSON.stringify(defaultValue);
+	JSON.stringify(propStatus ?? defaultValue) !== JSON.stringify(defaultValue);
+
+const isResettablePropStatus = ({
+	propStatus,
+	defaultValue,
+}: {
+	readonly propStatus: CanUpdateSequencePropStatus | null | undefined;
+	readonly defaultValue: unknown;
+}) => {
+	if (!propStatus || propStatus.status === 'computed') {
+		return false;
+	}
+
+	if (defaultValue === undefined) {
+		return false;
+	}
+
+	if (propStatus.status === 'keyframed') {
+		return true;
+	}
+
+	return isNonDefaultCodeValue({
+		propStatus: propStatus.codeValue,
+		defaultValue,
+	});
+};
 
 const getDefaultValue = (
 	fieldSchema: Exclude<SequenceFieldSchema, {type: 'hidden'}>,
@@ -69,26 +109,26 @@ export const getTimelinePropResetTargets = ({
 	selections,
 	sequences,
 	overrideIdsToNodePaths,
-	codeValues,
+	propStatuses,
 }: {
 	readonly selections: readonly TimelineSelection[];
 	readonly sequences: TSequence[];
 	readonly overrideIdsToNodePaths: OverrideIdToNodePaths;
-	readonly codeValues: CodeValues;
+	readonly propStatuses: PropStatuses;
 }): TimelinePropResetTarget[] | null => {
-	const firstSelection = selections[0];
-	if (!firstSelection || !isPropResetSelection(firstSelection)) {
+	const propSelections = selections.filter(isPropResetSelection);
+	if (propSelections.length === 0) {
 		return null;
 	}
 
+	if (propSelections.length !== selections.length) {
+		return null;
+	}
+
+	assertPropResetSelections(selections);
+
 	const resetTargets: TimelinePropResetTarget[] = [];
 	for (const selection of selections) {
-		if (!isPropResetSelection(selection)) {
-			throw new Error(
-				`Assertion failed: Cannot reset timeline selections of different types (${firstSelection.type}, ${selection.type})`,
-			);
-		}
-
 		const track = findTrackForNodePathInfo({
 			sequences,
 			overrideIdsToNodePaths,
@@ -106,15 +146,14 @@ export const getTimelinePropResetTargets = ({
 			}
 
 			const sequenceFieldSchema = sequence.controls.schema[selection.key];
-			const sequencePropStatus = Internals.getCodeValuesCtx(
-				codeValues,
+			const sequencePropStatus = Internals.getPropStatusesCtx(
+				propStatuses,
 				nodePath,
 			)?.[selection.key];
 			if (
 				!isVisibleFieldSchema(sequenceFieldSchema) ||
-				!sequencePropStatus?.canUpdate ||
-				!isNonDefaultCodeValue({
-					codeValue: sequencePropStatus.codeValue,
+				!isResettablePropStatus({
+					propStatus: sequencePropStatus,
 					defaultValue: sequenceFieldSchema.default,
 				})
 			) {
@@ -135,8 +174,8 @@ export const getTimelinePropResetTargets = ({
 
 		const effect = sequence.effects[selection.i];
 		const fieldSchema = effect?.schema[selection.key];
-		const effectStatus = Internals.getEffectCodeValuesCtx({
-			codeValues,
+		const effectStatus = Internals.getEffectPropStatusesCtx({
+			propStatuses,
 			nodePath,
 			effectIndex: selection.i,
 		});
@@ -147,9 +186,8 @@ export const getTimelinePropResetTargets = ({
 		if (
 			!effect ||
 			!isVisibleFieldSchema(fieldSchema) ||
-			!propStatus?.canUpdate ||
-			!isNonDefaultCodeValue({
-				codeValue: propStatus.codeValue,
+			!isResettablePropStatus({
+				propStatus,
 				defaultValue: fieldSchema.default,
 			})
 		) {
@@ -175,22 +213,22 @@ export const resetSelectedTimelineProps = ({
 	selections,
 	sequences,
 	overrideIdsToNodePaths,
-	codeValues,
-	setCodeValues,
+	propStatuses,
+	setPropStatuses,
 	clientId,
 }: {
 	readonly selections: readonly TimelineSelection[];
 	readonly sequences: TSequence[];
 	readonly overrideIdsToNodePaths: OverrideIdToNodePaths;
-	readonly codeValues: CodeValues;
-	readonly setCodeValues: SetCodeValues;
+	readonly propStatuses: PropStatuses;
+	readonly setPropStatuses: SetPropStatuses;
 	readonly clientId: string;
 }): Promise<void> | null => {
 	const resetTargets = getTimelinePropResetTargets({
 		selections,
 		sequences,
 		overrideIdsToNodePaths,
-		codeValues,
+		propStatuses,
 	});
 	if (resetTargets === null || resetTargets.length === 0) {
 		return null;
@@ -217,16 +255,16 @@ export const resetSelectedTimelineProps = ({
 					defaultValue: target.defaultValue,
 					schema: target.schema,
 				})),
-				setCodeValues,
+				setPropStatuses,
 				clientId,
 				undoLabel:
 					sequencePropTargets.length > 1
 						? 'Reset selected sequence props'
-						: null,
+						: 'Reset sequence prop',
 				redoLabel:
 					sequencePropTargets.length > 1
 						? 'Reapply selected sequence props'
-						: null,
+						: 'Reapply sequence prop',
 			}),
 		);
 	}
@@ -234,6 +272,7 @@ export const resetSelectedTimelineProps = ({
 	for (const target of effectPropTargets) {
 		resetPromises.push(
 			saveEffectProp({
+				type: 'value',
 				fileName: target.fileName,
 				nodePath: target.nodePath,
 				effectIndex: target.effectIndex,
@@ -241,7 +280,7 @@ export const resetSelectedTimelineProps = ({
 				value: target.value,
 				defaultValue: target.defaultValue,
 				schema: target.schema,
-				setCodeValues,
+				setPropStatuses,
 				clientId,
 			}),
 		);

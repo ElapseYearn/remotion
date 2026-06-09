@@ -27,6 +27,7 @@ import {ModalsContext} from '../state/modals';
 import {getCompositionMenuItems} from './composition-menu-items';
 import {CompositionContextButton} from './CompositionContextButton';
 import {ContextMenu} from './ContextMenu';
+import {getFolderMenuItems} from './folder-menu-items';
 import {Row, Spacing} from './layout';
 import type {ComboboxValue} from './NewComposition/ComboBox';
 import {SidebarRenderButton} from './SidebarRenderButton';
@@ -78,6 +79,7 @@ export type CompositionSelectorItemType =
 	| {
 			key: string;
 			type: 'folder';
+			folder: _InternalTypes['TFolder'];
 			folderName: string;
 			parentName: string | null;
 			items: CompositionSelectorItemType[];
@@ -152,7 +154,7 @@ export const CompositionSelectorItem: React.FC<{
 	}, [hovered, selected]);
 
 	const onClick = useCallback(
-		(evt: MouseEvent | KeyboardEvent<HTMLAnchorElement>) => {
+		(evt: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => {
 			evt.preventDefault();
 			if (item.type === 'composition') {
 				markCompositionSidebarScrollFromRowClick(item.composition.id);
@@ -164,9 +166,9 @@ export const CompositionSelectorItem: React.FC<{
 		[item, selectComposition, toggleFolder],
 	);
 
-	const onKeyPress = useCallback(
-		(evt: React.KeyboardEvent<HTMLAnchorElement>) => {
-			if (evt.key === 'Enter') {
+	const onKeyDown = useCallback(
+		(evt: React.KeyboardEvent<HTMLElement>) => {
+			if (evt.key === 'Enter' || evt.key === ' ') {
 				onClick(evt);
 			}
 		},
@@ -177,7 +179,7 @@ export const CompositionSelectorItem: React.FC<{
 	const connectionStatus = useContext(StudioServerConnectionCtx)
 		.previewServerState.type;
 	const resolvedLocation = useResolvedStack(
-		item.type === 'composition' ? item.composition.stack : null,
+		item.type === 'composition' ? item.composition.stack : item.folder.stack,
 	);
 
 	const contextMenu = useMemo((): ComboboxValue[] => {
@@ -192,35 +194,52 @@ export const CompositionSelectorItem: React.FC<{
 			});
 		}
 
-		return [];
+		return getFolderMenuItems({
+			closeMenu: noop,
+			connectionStatus,
+			folder: item.folder,
+			resolvedLocation,
+			setSelectedModal,
+			readOnlyStudio: window.remotion_isReadOnlyStudio,
+		});
 	}, [connectionStatus, item, resolvedLocation, setSelectedModal]);
 
 	if (item.type === 'folder') {
 		return (
 			<>
-				<button
-					style={style}
-					onPointerEnter={onPointerEnter}
-					onPointerLeave={onPointerLeave}
-					tabIndex={tabIndex}
-					onClick={onClick}
-					type="button"
-					title={item.folderName}
-				>
-					{item.expanded ? (
-						<ExpandedFolderIcon
-							style={iconStyle}
-							color={hovered || selected ? 'white' : LIGHT_TEXT}
-						/>
-					) : (
-						<CollapsedFolderIcon
-							color={hovered || selected ? 'white' : LIGHT_TEXT}
-							style={iconStyle}
-						/>
-					)}
-					<Spacing x={1} />
-					<div style={label}>{item.folderName}</div>
-				</button>
+				<ContextMenu values={contextMenu} onOpen={null}>
+					<Row align="center">
+						<div
+							style={style}
+							onPointerEnter={onPointerEnter}
+							onPointerLeave={onPointerLeave}
+							tabIndex={tabIndex}
+							onClick={onClick}
+							onKeyDown={onKeyDown}
+							title={item.folderName}
+							role="button"
+						>
+							{item.expanded ? (
+								<ExpandedFolderIcon
+									style={iconStyle}
+									color={hovered || selected ? 'white' : LIGHT_TEXT}
+								/>
+							) : (
+								<CollapsedFolderIcon
+									color={hovered || selected ? 'white' : LIGHT_TEXT}
+									style={iconStyle}
+								/>
+							)}
+							<Spacing x={1} />
+							<div style={label}>{item.folderName}</div>
+							<Spacing x={0.5} />
+							<CompositionContextButton
+								values={contextMenu}
+								visible={hovered}
+							/>
+						</div>
+					</Row>
+				</ContextMenu>
 				{item.expanded
 					? item.items.map((childItem) => {
 							return (
@@ -250,7 +269,7 @@ export const CompositionSelectorItem: React.FC<{
 					onPointerLeave={onPointerLeave}
 					tabIndex={tabIndex}
 					onClick={onClick}
-					onKeyPress={onKeyPress}
+					onKeyDown={onKeyDown}
 					type="button"
 					title={item.composition.id}
 					className="__remotion-composition"

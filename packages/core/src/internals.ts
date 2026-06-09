@@ -54,8 +54,8 @@ import {
 } from './effects/run-effect-chain.js';
 import {useEffectChainState} from './effects/use-effect-chain-state.js';
 import {
-	getCodeValuesCtx,
-	getEffectCodeValuesCtx,
+	getEffectPropStatusesCtx,
+	getPropStatusesCtx,
 	useMemoizedEffectDefinitions,
 	useMemoizedEffects,
 } from './effects/use-memoized-effects.js';
@@ -73,7 +73,10 @@ import {
 	getFlatSchemaWithAllKeys,
 } from './flatten-schema.js';
 import {getAssetDisplayName} from './get-asset-file-name.js';
-import {getEffectiveVisualModeValue} from './get-effective-visual-mode-value.js';
+import {
+	getEffectiveVisualModeValue,
+	resolveDragOverrideValue,
+} from './get-effective-visual-mode-value.js';
 import {
 	getPreviewDomElement,
 	REMOTION_STUDIO_CONTAINER_ELEMENT,
@@ -115,11 +118,15 @@ import {
 	useResolvedVideoConfig,
 } from './ResolveCompositionConfig.js';
 import {
+	durationInFramesField,
+	fromField,
 	hiddenField,
 	sequencePremountSchema,
 	sequenceSchema,
 	sequenceStyleSchema,
 	sequenceVisualStyleSchema,
+	type ArrayFieldSchema,
+	type ArrayItemFieldSchema,
 	type SequenceFieldSchema,
 	type SequenceSchema,
 	type VisibleFieldSchema,
@@ -135,13 +142,16 @@ import {
 } from './sequence-node-path.js';
 import type {ResolvedStackLocation} from './sequence-stack-traces.js';
 import {SequenceStackTracesUpdateContext} from './sequence-stack-traces.js';
+import {SequenceWithoutSchema} from './Sequence.js';
 import {SequenceContext} from './SequenceContext.js';
 import type {CannotUpdateSequenceReason} from './SequenceManager.js';
 import {
 	makeSequencePropsSubscriptionKey,
 	SequenceManager,
-	VisualModeCodeValuesContext,
+	SequenceManagerRefContext,
 	VisualModeDragOverridesContext,
+	VisualModePropStatusesContext,
+	VisualModePropStatusesRefContext,
 	VisualModeSettersContext,
 	type CanUpdateEffectPropsResponse,
 	type CanUpdateEffectPropsResponseFalse,
@@ -182,21 +192,26 @@ import {
 	useBasicMediaInTimeline,
 	useMediaInTimeline,
 } from './use-media-in-timeline.js';
+import {PixelDensityContext} from './use-pixel-density.js';
 import type {
 	CanUpdateSequencePropStatusFalse,
 	CanUpdateSequencePropStatusKeyframed,
-	CanUpdateSequencePropStatusTrue,
-	GetCodeValues,
+	CanUpdateSequencePropStatusStatic,
+	DragOverrideValue,
 	GetDragOverrides,
-	GetEffectCodeValues,
 	GetEffectDragOverrides,
+	GetEffectPropStatuses,
+	GetPropStatuses,
 } from './use-schema.js';
 import {
 	computeEffectiveSchemaValuesDotNotation,
+	getStaticDragOverrideValue,
+	makeKeyframedDragOverride,
+	makeStaticDragOverride,
 	type CanUpdateSequencePropStatus,
-	type CodeValues,
 	type DragOverrides,
 	type EffectDragOverrides,
+	type PropStatuses,
 } from './use-schema.js';
 import {useUnsafeVideoConfig} from './use-unsafe-video-config.js';
 import {useVideo} from './use-video.js';
@@ -210,6 +225,10 @@ import {
 	invalidCompositionErrorMessage,
 	isCompositionIdValid,
 } from './validation/validate-composition-id.js';
+import {
+	invalidFolderNameErrorMessage,
+	isFolderNameValid,
+} from './validation/validate-folder-name.js';
 import {DurationsContextProvider} from './video/duration-state.js';
 import {InnerOffthreadVideo} from './video/OffthreadVideo.js';
 import {isIosSafari} from './video/video-fragment.js';
@@ -260,13 +279,16 @@ export const Internals = {
 	VideoForPreview,
 	CompositionManager,
 	CompositionSetters,
-	VisualModeCodeValuesContext,
+	VisualModePropStatusesContext,
+	VisualModePropStatusesRefContext,
 	VisualModeDragOverridesContext,
 	VisualModeSettersContext,
 	SequenceManager,
+	SequenceManagerRefContext,
 	SequenceStackTracesUpdateContext,
 	wrapInSchema,
 	sequenceSchema,
+	SequenceWithoutSchema,
 	sequenceStyleSchema,
 	sequenceVisualStyleSchema,
 	sequencePremountSchema,
@@ -295,8 +317,10 @@ export const Internals = {
 	SharedAudioTagsContext,
 	SharedAudioTagsContextProvider,
 	invalidCompositionErrorMessage,
+	invalidFolderNameErrorMessage,
 	calculateMediaDuration,
 	isCompositionIdValid,
+	isFolderNameValid,
 	getPreviewDomElement,
 	compositionsRef,
 	portalNode,
@@ -331,6 +355,7 @@ export const Internals = {
 	BufferingContextReact,
 	getComponentsToAddStacksTo,
 	CurrentScaleContext,
+	PixelDensityContext,
 	PreviewSizeContext,
 	calculateScale,
 	validateRenderAsset,
@@ -370,16 +395,24 @@ export const Internals = {
 	createWebGL2ContextError,
 	computeEffectiveSchemaValuesDotNotation,
 	interpolateKeyframedStatus,
+	makeStaticDragOverride,
+	makeKeyframedDragOverride,
+	resolveDragOverrideValue,
+	getStaticDragOverrideValue,
 	OverrideIdsToNodePathsGettersContext,
 	OverrideIdsToNodePathsSettersContext,
 	findPropsToDelete,
 	makeSequencePropsSubscriptionKey,
-	getCodeValuesCtx,
-	getEffectCodeValuesCtx,
+	getPropStatusesCtx,
+	getEffectPropStatusesCtx,
 	hiddenField,
+	durationInFramesField,
+	fromField,
 } as const;
 
 export type {
+	ArrayFieldSchema,
+	ArrayItemFieldSchema,
 	CannotUpdateSequenceReason,
 	CanUpdateEffectPropsResponse,
 	CanUpdateEffectPropsResponseFalse,
@@ -390,16 +423,16 @@ export type {
 	CanUpdateSequencePropStatus,
 	CanUpdateSequencePropStatusFalse,
 	CanUpdateSequencePropStatusKeyframed,
-	CanUpdateSequencePropStatusTrue,
-	CodeValues,
+	CanUpdateSequencePropStatusStatic,
 	CompositionManagerContext,
 	CompProps,
 	DragOverrides,
+	DragOverrideValue,
 	EffectDragOverrides,
-	GetCodeValues,
 	GetDragOverrides,
-	GetEffectCodeValues,
 	GetEffectDragOverrides,
+	GetEffectPropStatuses,
+	GetPropStatuses,
 	LoggingContextValue,
 	MediaVolumeContextValue,
 	NonceHistory,
@@ -409,6 +442,7 @@ export type {
 	OverrideToNodePathGetters,
 	OverrideToNodeSetters,
 	PlaybackRateContextValue,
+	PropStatuses,
 	RemotionAudioContextState,
 	RemotionEnvironment,
 	ResolvedStackLocation,

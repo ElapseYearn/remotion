@@ -1,7 +1,7 @@
 import React, {forwardRef, useContext, useMemo, useState} from 'react';
 import type {SequenceControls} from './CompositionManager.js';
 import {deleteNestedKey} from './delete-nested-key.js';
-import {getCodeValuesCtx} from './effects/use-memoized-effects.js';
+import {getPropStatusesCtx} from './effects/use-memoized-effects.js';
 import {
 	flattenActiveSchema,
 	getFlatSchemaWithAllKeys,
@@ -9,8 +9,8 @@ import {
 import type {SequenceSchema} from './sequence-field-schema.js';
 import {OverrideIdsToNodePathsGettersContext} from './sequence-node-path.js';
 import {
-	VisualModeCodeValuesContext,
 	VisualModeDragOverridesContext,
+	VisualModePropStatusesContext,
 } from './SequenceManager.js';
 import {useCurrentFrame} from './use-current-frame.js';
 import {useRemotionEnvironment} from './use-remotion-environment.js';
@@ -101,12 +101,17 @@ export const mergeValues = ({
 
 const stackToOverrideMap: Record<string, string> = {};
 
-export const wrapInSchema = <S extends SequenceSchema, Props extends object>(
+export const wrapInSchema = <S extends SequenceSchema, Props extends object>({
+	Component,
+	schema,
+	supportsEffects,
+}: {
 	Component: React.ComponentType<
 		Props & {readonly _experimentalControls: SequenceControls | undefined}
-	>,
-	schema: S,
-): React.ComponentType<Props> => {
+	>;
+	schema: S;
+	supportsEffects: boolean;
+}): React.ComponentType<Props> => {
 	// Schema is static for a component, so we move this outside
 	const flatSchema = getFlatSchemaWithAllKeys(schema);
 	const flatKeys = Object.keys(flatSchema);
@@ -126,7 +131,7 @@ export const wrapInSchema = <S extends SequenceSchema, Props extends object>(
 		}
 
 		// eslint-disable-next-line react-hooks/rules-of-hooks
-		const {codeValues} = useContext(VisualModeCodeValuesContext);
+		const {propStatuses} = useContext(VisualModePropStatusesContext);
 		// eslint-disable-next-line react-hooks/rules-of-hooks
 		const {getDragOverrides} = useContext(VisualModeDragOverridesContext);
 		// eslint-disable-next-line react-hooks/rules-of-hooks
@@ -180,11 +185,12 @@ export const wrapInSchema = <S extends SequenceSchema, Props extends object>(
 		);
 
 		// eslint-disable-next-line react-hooks/rules-of-hooks
-		const controls = useMemo(() => {
+		const controls = useMemo((): SequenceControls => {
 			return {
 				schema,
 				currentRuntimeValueDotNotation,
 				overrideId,
+				supportsEffects,
 			};
 		}, [currentRuntimeValueDotNotation, overrideId]);
 
@@ -198,14 +204,14 @@ export const wrapInSchema = <S extends SequenceSchema, Props extends object>(
 				propStatus:
 					nodePath === null
 						? undefined
-						: getCodeValuesCtx(codeValues, nodePath),
+						: getPropStatusesCtx(propStatuses, nodePath),
 				frame,
 			});
 		}, [
 			currentRuntimeValueDotNotation,
 			getDragOverrides,
 			nodePath,
-			codeValues,
+			propStatuses,
 			frame,
 		]);
 

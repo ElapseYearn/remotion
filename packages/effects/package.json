@@ -1,6 +1,6 @@
 {
 	"name": "@remotion/effects",
-	"version": "4.0.470",
+	"version": "4.0.474",
 	"description": "Effects that can be applied to Remotion-based canvas components",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
@@ -48,6 +48,11 @@
 			"types": "./dist/chromatic-aberration.d.ts",
 			"module": "./dist/esm/chromatic-aberration.mjs",
 			"import": "./dist/esm/chromatic-aberration.mjs"
+		},
+		"./color-key": {
+			"types": "./dist/color-key.d.ts",
+			"module": "./dist/esm/color-key.mjs",
+			"import": "./dist/esm/color-key.mjs"
 		},
 		"./brightness": {
 			"types": "./dist/brightness.d.ts",
@@ -119,6 +124,11 @@
 			"module": "./dist/esm/lines.mjs",
 			"import": "./dist/esm/lines.mjs"
 		},
+		"./linear-progressive-blur": {
+			"types": "./dist/linear-progressive-blur.d.ts",
+			"module": "./dist/esm/linear-progressive-blur.mjs",
+			"import": "./dist/esm/linear-progressive-blur.mjs"
+		},
 		"./dot-grid": {
 			"types": "./dist/dot-grid.d.ts",
 			"module": "./dist/esm/dot-grid.mjs",
@@ -133,6 +143,11 @@
 			"types": "./dist/noise.d.ts",
 			"module": "./dist/esm/noise.mjs",
 			"import": "./dist/esm/noise.mjs"
+		},
+		"./noise-displacement": {
+			"types": "./dist/noise-displacement.d.ts",
+			"module": "./dist/esm/noise-displacement.mjs",
+			"import": "./dist/esm/noise-displacement.mjs"
 		},
 		"./rings": {
 			"types": "./dist/rings.d.ts",
@@ -212,6 +227,9 @@
 			"chromatic-aberration": [
 				"dist/chromatic-aberration.d.ts"
 			],
+			"color-key": [
+				"dist/color-key.d.ts"
+			],
 			"brightness": [
 				"dist/brightness.d.ts"
 			],
@@ -254,6 +272,9 @@
 			"lines": [
 				"dist/lines.d.ts"
 			],
+			"linear-progressive-blur": [
+				"dist/linear-progressive-blur.d.ts"
+			],
 			"dot-grid": [
 				"dist/dot-grid.d.ts"
 			],
@@ -262,6 +283,9 @@
 			],
 			"noise": [
 				"dist/noise.d.ts"
+			],
+			"noise-displacement": [
+				"dist/noise-displacement.d.ts"
 			],
 			"rings": [
 				"dist/rings.d.ts"

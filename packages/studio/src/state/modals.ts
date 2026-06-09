@@ -26,6 +26,8 @@ import type {_InternalTypes} from 'remotion';
 import type {CompType} from '../components/NewComposition/DuplicateComposition';
 import type {QuickSwitcherMode} from '../components/QuickSwitcher/NoResults';
 import type {RenderType} from '../components/RenderModal/RenderModalAdvanced';
+import type {EasingEditorModalState} from '../components/Timeline/EasingEditorModal';
+import type {KeyframeSettingsModalState} from '../components/Timeline/KeyframeSettingsModal';
 import type {Bug, UpdateInfo} from '../components/UpdateCheck';
 
 export type WebRenderModalState = {
@@ -108,6 +110,17 @@ export type RenderModalState = {
 	renderDefaults: RenderDefaults;
 };
 
+export type ConfirmationDialogState = {
+	type: 'confirmation-dialog';
+	id: string;
+	title: string;
+	message: React.ReactNode;
+	confirmLabel: string;
+	cancelLabel: string;
+	onConfirm: () => void;
+	onCancel: () => void;
+};
+
 export type ModalState =
 	| {
 			type: 'duplicate-comp';
@@ -123,8 +136,26 @@ export type ModalState =
 			compositionId: string;
 	  }
 	| {
+			type: 'delete-folder';
+			folderName: string;
+			parentName: string | null;
+			stack: string | null;
+	  }
+	| {
+			type: 'rename-folder';
+			folderName: string;
+			parentName: string | null;
+			stack: string | null;
+	  }
+	| {
+			type: 'rename-static-file';
+			relativePath: string;
+	  }
+	| {
 			type: 'input-props-override';
 	  }
+	| EasingEditorModalState
+	| KeyframeSettingsModalState
 	| RenderModalState
 	| WebRenderModalState
 	| {
@@ -144,7 +175,8 @@ export type ModalState =
 			type: 'quick-switcher';
 			mode: QuickSwitcherMode;
 			invocationTimestamp: number;
-	  };
+	  }
+	| ConfirmationDialogState;
 
 export type ModalContextType = {
 	selectedModal: ModalState | null;

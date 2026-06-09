@@ -1,6 +1,12 @@
 import type {Size} from '@remotion/player';
 import {PlayerInternals} from '@remotion/player';
-import React, {useContext, useEffect, useMemo, useRef} from 'react';
+import React, {
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+} from 'react';
 import type {CanvasContent} from 'remotion';
 import {Internals} from 'remotion';
 import {ErrorLoader} from '../error-overlay/remotion-overlay/ErrorLoader';
@@ -12,6 +18,7 @@ import {
 } from '../helpers/checkerboard-background';
 import {LIGHT_TEXT} from '../helpers/colors';
 import type {AssetMetadata} from '../helpers/get-asset-metadata';
+import {getPreviewFileType} from '../helpers/get-preview-file-type';
 import type {Dimensions} from '../helpers/is-current-selected-still';
 import {CheckerboardContext} from '../state/checkerboard';
 import {VERTICAL_SCROLLBAR_CLASSNAME} from './Menu/is-menu-item';
@@ -19,6 +26,8 @@ import {RenderPreview} from './RenderPreview';
 import {SelectedOutlineOverlay} from './SelectedOutlineOverlay';
 import {Spinner} from './Spinner';
 import {StaticFilePreview} from './StaticFilePreview';
+import {shouldClearSelectionOnPointerDown} from './Timeline/should-clear-selection-on-pointer-down';
+import {useTimelineSelection} from './Timeline/TimelineSelection';
 
 const centeredContainer: React.CSSProperties = {
 	display: 'flex',
@@ -40,50 +49,6 @@ const assetMetadataErrorContainer: React.CSSProperties = {
 	position: 'absolute',
 	height: '100%',
 	overflowY: 'auto',
-};
-
-export type AssetFileType =
-	| 'audio'
-	| 'video'
-	| 'image'
-	| 'json'
-	| 'txt'
-	| 'other';
-export const getPreviewFileType = (fileName: string | null): AssetFileType => {
-	if (!fileName) {
-		return 'other';
-	}
-
-	const audioExtensions = ['mp3', 'wav', 'ogg', 'aac'];
-	const videoExtensions = ['mp4', 'avi', 'mkv', 'mov', 'webm'];
-	const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp'];
-
-	const fileExtension = fileName.split('.').pop()?.toLowerCase();
-	if (fileExtension === undefined) {
-		throw new Error('File extension is undefined');
-	}
-
-	if (audioExtensions.includes(fileExtension)) {
-		return 'audio';
-	}
-
-	if (videoExtensions.includes(fileExtension)) {
-		return 'video';
-	}
-
-	if (imageExtensions.includes(fileExtension)) {
-		return 'image';
-	}
-
-	if (fileExtension === 'json') {
-		return 'json';
-	}
-
-	if (fileExtension === 'txt') {
-		return 'txt';
-	}
-
-	return 'other';
 };
 
 const checkerboardSize = 49;
@@ -285,6 +250,8 @@ const PortalContainer: React.FC<{
 	readonly contentDimensions: Dimensions;
 }> = ({scale, xCorrection, yCorrection, contentDimensions}) => {
 	const {checkerboard} = useContext(CheckerboardContext);
+	const {clearSelection} = useTimelineSelection();
+	const portalContainer = useRef<HTMLDivElement>(null);
 
 	const style = useMemo((): React.CSSProperties => {
 		return containerStyle({
@@ -312,7 +279,29 @@ const PortalContainer: React.FC<{
 		};
 	}, []);
 
-	const portalContainer = useRef<HTMLDivElement>(null);
+	const onPointerDown = useCallback(
+		(event: PointerEvent) => {
+			if (!shouldClearSelectionOnPointerDown(event)) {
+				return;
+			}
+
+			clearSelection();
+		},
+		[clearSelection],
+	);
+
+	useEffect(() => {
+		const {current} = portalContainer;
+		if (!current) {
+			return;
+		}
+
+		current.addEventListener('pointerdown', onPointerDown);
+
+		return () => {
+			current.removeEventListener('pointerdown', onPointerDown);
+		};
+	}, [onPointerDown]);
 
 	return <div ref={portalContainer} style={style} />;
 };

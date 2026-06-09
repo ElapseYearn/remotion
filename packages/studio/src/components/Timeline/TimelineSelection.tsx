@@ -17,6 +17,7 @@ import type {
 import {TIMELINE_PADDING} from '../../helpers/timeline-layout';
 import {timelineNodePathInfoToKey} from '../../helpers/timeline-node-path-key';
 import {useKeybinding} from '../../helpers/use-keybinding';
+import {TimelineClipboardKeybindings} from './TimelineClipboardKeybindings';
 import {TimelineDeleteKeybindings} from './TimelineDeleteKeybindings';
 
 export const TIMELINE_SELECTED_BACKGROUND = '#3B3F42';
@@ -62,6 +63,7 @@ export const getTimelineSelectedTrackHighlightStyle = (
 export const SELECTION_ENABLED = false;
 export const TIMELINE_TOP_DRAG = false;
 export const ENABLE_OUTLINES = false;
+export const EASING_SELECTION_ENABLED = false;
 
 type TimelineSelectionBase = {
 	readonly nodePathInfo: SequenceNodePathInfo;
@@ -90,7 +92,18 @@ export type TimelineSelection =
 	| (TimelineSelectionBase & {
 			readonly type: 'keyframe';
 			readonly frame: number;
+	  })
+	| (TimelineSelectionBase & {
+			readonly type: 'easing';
+			readonly fromFrame: number;
+			readonly toFrame: number;
+			readonly segmentIndex: number;
 	  });
+
+export type TimelineEasingSelection = Extract<
+	TimelineSelection,
+	{type: 'easing'}
+>;
 
 export type TimelineSelectionInteraction = {
 	readonly shiftKey: boolean;
@@ -115,6 +128,27 @@ export type TimelineSelectionState = {
 };
 
 const getTimelineSelectionType = (item: TimelineSelection) => item.type;
+
+const areTimelineSelectionTypesCompatible = (
+	firstType: TimelineSelection['type'],
+	secondType: TimelineSelection['type'],
+): boolean => {
+	if (firstType === secondType) {
+		return true;
+	}
+
+	return (
+		(firstType === 'sequence-prop' && secondType === 'sequence-effect-prop') ||
+		(firstType === 'sequence-effect-prop' && secondType === 'sequence-prop') ||
+		(firstType === 'keyframe' && secondType === 'easing') ||
+		(firstType === 'easing' && secondType === 'keyframe')
+	);
+};
+
+const isTimelineSelectionCompatibleWithType = (
+	item: TimelineSelection,
+	type: TimelineSelection['type'],
+) => areTimelineSelectionTypesCompatible(getTimelineSelectionType(item), type);
 
 const getTimelineSelectionAnchor = (
 	selectedItems: readonly TimelineSelection[],
@@ -202,12 +236,14 @@ export const getTimelineSelectionAfterInteraction = ({
 	}
 
 	if (interaction.toggleKey) {
-		const sameTypeItems = selectedItems.filter(
-			(item) => getTimelineSelectionType(item) === clickedType,
+		const compatibleItems = selectedItems.filter((item) =>
+			isTimelineSelectionCompatibleWithType(item, clickedType),
 		);
-		const existingKeySet = new Set(sameTypeItems.map(getTimelineSelectionKey));
+		const existingKeySet = new Set(
+			compatibleItems.map(getTimelineSelectionKey),
+		);
 		if (existingKeySet.has(clickedKey)) {
-			const toggledSelection = sameTypeItems.filter(
+			const toggledSelection = compatibleItems.filter(
 				(item) => getTimelineSelectionKey(item) !== clickedKey,
 			);
 			return {
@@ -218,10 +254,12 @@ export const getTimelineSelectionAfterInteraction = ({
 
 		const selectableOrderMap = new Map(
 			allSelectableItems
-				.filter((item) => getTimelineSelectionType(item) === clickedType)
+				.filter((item) =>
+					isTimelineSelectionCompatibleWithType(item, clickedType),
+				)
 				.map((item, index) => [getTimelineSelectionKey(item), index] as const),
 		);
-		const extendedSelection = [...sameTypeItems, clickedItem].sort((a, b) => {
+		const extendedSelection = [...compatibleItems, clickedItem].sort((a, b) => {
 			return (
 				(selectableOrderMap.get(getTimelineSelectionKey(a)) ?? 0) -
 				(selectableOrderMap.get(getTimelineSelectionKey(b)) ?? 0)
@@ -241,6 +279,7 @@ export const getTimelineSelectionAfterInteraction = ({
 
 type TimelineSelectionContextValue = {
 	readonly canSelect: boolean;
+	readonly canSelectEasing: boolean;
 	readonly selectedItems: readonly TimelineSelection[];
 	readonly isSelected: (item: TimelineSelection) => boolean;
 	readonly selectItem: (
@@ -255,6 +294,7 @@ type TimelineSelectionContextValue = {
 
 const defaultTimelineSelectionContextValue: TimelineSelectionContextValue = {
 	canSelect: false,
+	canSelectEasing: false,
 	selectedItems: [],
 	isSelected: () => false,
 	selectItem: () => undefined,
@@ -323,7 +363,7 @@ export const getTimelineSelectionFromNodePathInfo = (
 	return null;
 };
 
-const getTimelineSelectionKey = (item: TimelineSelection): string => {
+export const getTimelineSelectionKey = (item: TimelineSelection): string => {
 	const sequenceKey = getTimelineSequenceSelectionKey(item.nodePathInfo);
 	switch (item.type) {
 		case 'sequence':
@@ -340,6 +380,10 @@ const getTimelineSelectionKey = (item: TimelineSelection): string => {
 			return `${timelineNodePathInfoToKey(item.nodePathInfo)}.keyframe.${
 				item.frame
 			}`;
+		case 'easing':
+			return `${timelineNodePathInfoToKey(item.nodePathInfo)}.easing.${
+				item.segmentIndex
+			}.${item.fromFrame}.${item.toFrame}`;
 		default:
 			throw new Error(
 				`Unexpected timeline selection type: ${item satisfies never}`,
@@ -443,7 +487,11 @@ export const TimelineSelectionProvider: React.FC<{
 }> = ({children}) => {
 	const {previewServerState} = useContext(StudioServerConnectionCtx);
 	const canSelect =
-		SELECTION_ENABLED &&
+		(SELECTION_ENABLED || ENABLE_OUTLINES) &&
+		previewServerState.type === 'connected' &&
+		!window.remotion_isReadOnlyStudio;
+	const canSelectEasing =
+		EASING_SELECTION_ENABLED &&
 		previewServerState.type === 'connected' &&
 		!window.remotion_isReadOnlyStudio;
 	const [selectedItems, setSelectedItems] = useState<
@@ -455,10 +503,16 @@ export const TimelineSelectionProvider: React.FC<{
 	const registrationCounter = useRef(0);
 
 	useEffect(() => {
-		if (!canSelect) {
+		if (!canSelect && !canSelectEasing) {
 			setSelectedItems([]);
 		}
-	}, [canSelect]);
+	}, [canSelect, canSelectEasing]);
+
+	const canSelectItem = useCallback(
+		(item: TimelineSelection) =>
+			canSelect || (canSelectEasing && item.type === 'easing'),
+		[canSelect, canSelectEasing],
+	);
 
 	const selectedKeys = useMemo(
 		() => new Set(selectedItems.map(getTimelineSelectionKey)),
@@ -480,7 +534,7 @@ export const TimelineSelectionProvider: React.FC<{
 				toggleKey: false,
 			},
 		) => {
-			if (!canSelect) {
+			if (!canSelectItem(item)) {
 				return;
 			}
 
@@ -508,12 +562,12 @@ export const TimelineSelectionProvider: React.FC<{
 				return nextState.selectedItems;
 			});
 		},
-		[canSelect],
+		[canSelectItem],
 	);
 
 	const selectItems = useCallback(
 		(items: readonly TimelineSelection[]) => {
-			if (!canSelect) {
+			if (!items.every(canSelectItem)) {
 				return;
 			}
 
@@ -521,7 +575,7 @@ export const TimelineSelectionProvider: React.FC<{
 				items.length === 0 ? null : items[items.length - 1];
 			setSelectedItems(items);
 		},
-		[canSelect],
+		[canSelectItem],
 	);
 
 	const registerSelectableItem = useCallback((item: TimelineSelection) => {
@@ -553,6 +607,7 @@ export const TimelineSelectionProvider: React.FC<{
 	const value = useMemo(
 		(): TimelineSelectionContextValue => ({
 			canSelect,
+			canSelectEasing,
 			selectedItems,
 			isSelected,
 			selectItem,
@@ -563,6 +618,7 @@ export const TimelineSelectionProvider: React.FC<{
 		}),
 		[
 			canSelect,
+			canSelectEasing,
 			selectedItems,
 			isSelected,
 			selectItem,
@@ -579,6 +635,7 @@ export const TimelineSelectionProvider: React.FC<{
 		<CurrentTimelineSelectionContext.Provider value={currentSelection}>
 			<TimelineSelectionContext.Provider value={value}>
 				{children}
+				<TimelineClipboardKeybindings />
 				<TimelineDeleteKeybindings />
 			</TimelineSelectionContext.Provider>
 		</CurrentTimelineSelectionContext.Provider>
@@ -671,6 +728,51 @@ export const useTimelineKeyframeSelection = (
 		onSelect,
 		selectable: canSelect,
 		selected,
+	};
+};
+
+export const useTimelineEasingSelection = ({
+	nodePathInfo,
+	fromFrame,
+	toFrame,
+	segmentIndex,
+}: {
+	readonly nodePathInfo: SequenceNodePathInfo;
+	readonly fromFrame: number;
+	readonly toFrame: number;
+	readonly segmentIndex: number;
+}) => {
+	const {canSelectEasing, isSelected, selectItem, registerSelectableItem} =
+		useTimelineSelection();
+	const selectionItem = useMemo(
+		(): TimelineEasingSelection => ({
+			type: 'easing',
+			nodePathInfo,
+			fromFrame,
+			toFrame,
+			segmentIndex,
+		}),
+		[nodePathInfo, fromFrame, segmentIndex, toFrame],
+	);
+
+	useEffect(() => {
+		return registerSelectableItem(selectionItem);
+	}, [registerSelectableItem, selectionItem]);
+
+	const selected = isSelected(selectionItem);
+
+	const onSelect = useCallback(
+		(interaction?: TimelineSelectionInteraction) => {
+			selectItem(selectionItem, interaction);
+		},
+		[selectItem, selectionItem],
+	);
+
+	return {
+		onSelect,
+		selectable: canSelectEasing,
+		selected,
+		selectionItem,
 	};
 };
 

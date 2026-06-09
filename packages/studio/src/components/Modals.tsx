@@ -2,15 +2,21 @@ import React, {useContext} from 'react';
 import {StudioServerConnectionCtx} from '../helpers/client-id';
 import {ModalsContext} from '../state/modals';
 import {AskAiModal} from './AskAiModal';
+import {ConfirmationDialog} from './ConfirmationDialog';
 import {InstallPackageModal} from './InstallPackage';
 import {DeleteComposition} from './NewComposition/DeleteComposition';
+import {DeleteFolder} from './NewComposition/DeleteFolder';
 import {DuplicateComposition} from './NewComposition/DuplicateComposition';
 import {RenameComposition} from './NewComposition/RenameComposition';
+import {RenameFolder} from './NewComposition/RenameFolder';
+import {RenameStaticFileModal} from './NewComposition/RenameStaticFile';
 import {OverrideInputPropsModal} from './OverrideInputProps';
 import QuickSwitcher from './QuickSwitcher/QuickSwitcher';
 import {RenderStatusModal} from './RenderModal/RenderStatusModal';
 import {RenderModalWithLoader} from './RenderModal/ServerRenderModal';
 import {WebRenderModalWithLoader} from './RenderModal/WebRenderModal';
+import {EasingEditorModal} from './Timeline/EasingEditorModal';
+import {KeyframeSettingsModal} from './Timeline/KeyframeSettingsModal';
 import {UpdateModal} from './UpdateModal/UpdateModal';
 
 export const Modals: React.FC<{
@@ -35,8 +41,31 @@ export const Modals: React.FC<{
 			{modalContextType && modalContextType.type === 'rename-comp' && (
 				<RenameComposition compositionId={modalContextType.compositionId} />
 			)}
+			{modalContextType && modalContextType.type === 'delete-folder' && (
+				<DeleteFolder
+					folderName={modalContextType.folderName}
+					parentName={modalContextType.parentName}
+					stack={modalContextType.stack}
+				/>
+			)}
+			{modalContextType && modalContextType.type === 'rename-folder' && (
+				<RenameFolder
+					folderName={modalContextType.folderName}
+					parentName={modalContextType.parentName}
+					stack={modalContextType.stack}
+				/>
+			)}
+			{modalContextType && modalContextType.type === 'rename-static-file' && (
+				<RenameStaticFileModal relativePath={modalContextType.relativePath} />
+			)}
 			{modalContextType && modalContextType.type === 'input-props-override' && (
 				<OverrideInputPropsModal />
+			)}
+			{modalContextType && modalContextType.type === 'keyframe-settings' && (
+				<KeyframeSettingsModal state={modalContextType} />
+			)}
+			{modalContextType && modalContextType.type === 'easing-editor' && (
+				<EasingEditorModal state={modalContextType} />
 			)}
 
 			{modalContextType && modalContextType.type === 'web-render' && (
@@ -137,6 +166,9 @@ export const Modals: React.FC<{
 					invocationTimestamp={modalContextType.invocationTimestamp}
 					initialMode={modalContextType.mode}
 				/>
+			)}
+			{modalContextType && modalContextType.type === 'confirmation-dialog' && (
+				<ConfirmationDialog state={modalContextType} />
 			)}
 			{process.env.ASK_AI_ENABLED && <AskAiModal />}
 		</>

@@ -21,14 +21,23 @@ type UndoEntryType =
 	| 'default-props'
 	| 'sequence-props'
 	| 'effect-props'
+	// Dead code for now: the Studio selection model cannot mix sequence props and
+	// effect props yet, but this will be used once mixed prop selection is enabled.
+	| 'keyframe-add'
+	| 'keyframe-delete'
 	| 'add-effect'
 	| 'delete-effect'
+	| 'paste-effects'
+	| 'reorder-effect'
+	| 'reorder-sequence'
 	| 'delete-jsx-node'
 	| 'duplicate-jsx-node'
 	| 'insert-jsx-element'
 	| 'delete-composition'
 	| 'rename-composition'
-	| 'duplicate-composition';
+	| 'duplicate-composition'
+	| 'delete-folder'
+	| 'rename-folder';
 
 type UndoEntrySnapshot = {
 	filePath: string;
@@ -51,14 +60,21 @@ type UndoEntry = {
 	| {entryType: 'default-props'}
 	| {entryType: 'sequence-props'}
 	| {entryType: 'effect-props'}
+	| {entryType: 'keyframe-add'}
+	| {entryType: 'keyframe-delete'}
 	| {entryType: 'add-effect'}
 	| {entryType: 'delete-effect'}
+	| {entryType: 'paste-effects'}
+	| {entryType: 'reorder-effect'}
+	| {entryType: 'reorder-sequence'}
 	| {entryType: 'delete-jsx-node'}
 	| {entryType: 'duplicate-jsx-node'}
 	| {entryType: 'insert-jsx-element'}
 	| {entryType: 'delete-composition'}
 	| {entryType: 'rename-composition'}
 	| {entryType: 'duplicate-composition'}
+	| {entryType: 'delete-folder'}
+	| {entryType: 'rename-folder'}
 );
 
 const MAX_ENTRIES = 100;

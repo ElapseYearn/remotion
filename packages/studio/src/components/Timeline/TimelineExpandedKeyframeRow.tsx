@@ -1,9 +1,13 @@
 import React, {useContext} from 'react';
 import type {SequenceNodePathInfo} from '../../helpers/get-timeline-sequence-sort-key';
 import {TIMELINE_ITEM_BORDER_BOTTOM} from '../../helpers/timeline-layout';
+import {getTimelineEasingSegments} from './get-timeline-easing-segments';
 import type {getTimelineKeyframes} from './get-timeline-keyframes';
 import {TimelineKeyframeDiamond} from './TimelineKeyframeDiamond';
+import {TimelineKeyframeEasingLine} from './TimelineKeyframeEasingLine';
 import {
+	ENABLE_OUTLINES,
+	EASING_SELECTION_ENABLED,
 	getTimelineSelectedTrackHighlightStyle,
 	useTimelineRowSelection,
 } from './TimelineSelection';
@@ -20,11 +24,16 @@ const rowSeparator: React.CSSProperties = {
 const TimelineExpandedKeyframeRowUnmemoized: React.FC<{
 	readonly height: number;
 	readonly keyframes: ReturnType<typeof getTimelineKeyframes>;
+	readonly canEditEasing: boolean;
 	readonly nodePathInfo: SequenceNodePathInfo;
 	readonly showSeparator: boolean;
-}> = ({height, keyframes, nodePathInfo, showSeparator}) => {
+}> = ({height, keyframes, canEditEasing, nodePathInfo, showSeparator}) => {
 	const timelineWidth = useContext(TimelineWidthContext);
 	const {selected: rowSelected} = useTimelineRowSelection(nodePathInfo);
+	const easingSegments =
+		(ENABLE_OUTLINES || EASING_SELECTION_ENABLED) && canEditEasing
+			? getTimelineEasingSegments(keyframes)
+			: [];
 
 	return (
 		<>
@@ -33,6 +42,16 @@ const TimelineExpandedKeyframeRowUnmemoized: React.FC<{
 				{rowSelected && timelineWidth !== null ? (
 					<div style={getTimelineSelectedTrackHighlightStyle(timelineWidth)} />
 				) : null}
+				{easingSegments.map((segment) => (
+					<TimelineKeyframeEasingLine
+						key={`${segment.segmentIndex}-${segment.fromFrame}-${segment.toFrame}`}
+						fromFrame={segment.fromFrame}
+						toFrame={segment.toFrame}
+						rowHeight={height}
+						nodePathInfo={nodePathInfo}
+						segmentIndex={segment.segmentIndex}
+					/>
+				))}
 				{keyframes.map((keyframe) => (
 					<TimelineKeyframeDiamond
 						key={keyframe.frame}

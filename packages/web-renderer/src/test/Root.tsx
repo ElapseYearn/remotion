@@ -54,6 +54,7 @@ import {overflowHidden} from './fixtures/overflow-hidden';
 import {overflowHidden3dTransform} from './fixtures/overflow-hidden-3d-transform';
 import {parentRotatedSvg} from './fixtures/parent-rotated-svg';
 import {parentTransformOrigin} from './fixtures/parent-transform-origin';
+import {pixelDensity} from './fixtures/pixel-density';
 import {pixelTransformOrigin} from './fixtures/pixel-transform-origin';
 import {rotatedCanvas} from './fixtures/rotated-canvas';
 import {scaleFixture} from './fixtures/scale';
@@ -71,6 +72,7 @@ import {letterSpacing} from './fixtures/text/letter-spacing';
 import {paragraphs} from './fixtures/text/paragraphs';
 import {textFixture} from './fixtures/text/text';
 import {textShadow} from './fixtures/text/text-shadow';
+import {textShadowScale} from './fixtures/text/text-shadow-scale';
 import {textTransform} from './fixtures/text/text-transform';
 import {webkitTextFillColor} from './fixtures/text/webkit-text-fill-color';
 import {webkitTextStroke} from './fixtures/text/webkit-text-stroke';
@@ -99,6 +101,7 @@ export const Root: React.FC = () => {
 			<Composition {...parentRotatedSvg} />
 			<Composition {...selfTransformOrigin} />
 			<Composition {...parentTransformOrigin} />
+			<Composition {...pixelDensity} />
 			<Composition {...accumulatedTransforms} />
 			<Composition {...rotatedCanvas} />
 			<Composition {...multiLevelTransformOrigins} />
@@ -165,6 +168,7 @@ export const Root: React.FC = () => {
 				<Composition {...backgroundClipText} />
 				<Composition {...backgroundClipText3dTransform} />
 				<Composition {...textShadow} />
+				<Composition {...textShadowScale} />
 				<Composition {...whiteSpaceCollapsing} />
 				<Composition {...whiteSpaceCollapsing2} />
 				<Composition {...filterText} />

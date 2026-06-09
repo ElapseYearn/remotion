@@ -1,4 +1,4 @@
-import {optimisticUpdateForCodeValues} from '@remotion/studio-shared';
+import {optimisticUpdateForPropStatuses} from '@remotion/studio-shared';
 import type {
 	CanUpdateSequencePropsResponse,
 	SequencePropsSubscriptionKey,
@@ -7,7 +7,7 @@ import type {
 import {callApi} from '../call-api';
 import {enqueueSavePropChange} from './save-prop-queue';
 
-export type SetCodeValues = (
+export type SetPropStatuses = (
 	nodePath: SequencePropsSubscriptionKey,
 	values: (
 		prev: CanUpdateSequencePropsResponse,
@@ -25,20 +25,15 @@ export type SaveSequencePropChange = {
 
 type SaveSequencePropsOptions = {
 	changes: SaveSequencePropChange[];
-	setCodeValues: SetCodeValues;
+	setPropStatuses: SetPropStatuses;
 	clientId: string;
-	undoLabel: string | null;
-	redoLabel: string | null;
-};
-
-type SaveSequencePropOptions = SaveSequencePropChange & {
-	setCodeValues: SetCodeValues;
-	clientId: string;
+	undoLabel: string;
+	redoLabel: string;
 };
 
 export const saveSequenceProps = ({
 	changes,
-	setCodeValues,
+	setPropStatuses,
 	clientId,
 	undoLabel,
 	redoLabel,
@@ -47,9 +42,45 @@ export const saveSequenceProps = ({
 		return Promise.resolve();
 	}
 
+	if (changes.length === 1) {
+		const change = changes[0];
+		if (change === undefined) {
+			throw new Error('Expected a sequence prop change');
+		}
+
+		return enqueueSavePropChange({
+			nodePath: change.nodePath,
+			setPropStatuses,
+			applyOptimistic: (prev) =>
+				optimisticUpdateForPropStatuses({
+					previous: prev,
+					fieldKey: change.fieldKey,
+					value: change.value,
+					schema: change.schema,
+				}),
+			apiCall: () =>
+				callApi('/api/save-sequence-props', {
+					edits: [
+						{
+							fileName: change.fileName,
+							nodePath: change.nodePath,
+							key: change.fieldKey,
+							value: JSON.stringify(change.value),
+							defaultValue: change.defaultValue,
+							schema: change.schema,
+						},
+					],
+					clientId,
+					undoLabel,
+					redoLabel,
+				}),
+			errorLabel: 'Could not save sequence prop',
+		});
+	}
+
 	for (const change of changes) {
-		setCodeValues(change.nodePath, (prev) =>
-			optimisticUpdateForCodeValues({
+		setPropStatuses(change.nodePath, (prev) =>
+			optimisticUpdateForPropStatuses({
 				previous: prev,
 				fieldKey: change.fieldKey,
 				value: change.value,
@@ -73,44 +104,4 @@ export const saveSequenceProps = ({
 		undoLabel,
 		redoLabel,
 	}).then(() => undefined);
-};
-
-export const saveSequenceProp = ({
-	fileName,
-	nodePath,
-	fieldKey,
-	value,
-	defaultValue,
-	schema,
-	setCodeValues,
-	clientId,
-}: SaveSequencePropOptions): Promise<void> => {
-	return enqueueSavePropChange({
-		nodePath,
-		setCodeValues,
-		applyOptimistic: (prev) =>
-			optimisticUpdateForCodeValues({
-				previous: prev,
-				fieldKey,
-				value,
-				schema,
-			}),
-		apiCall: () =>
-			callApi('/api/save-sequence-props', {
-				edits: [
-					{
-						fileName,
-						nodePath,
-						key: fieldKey,
-						value: JSON.stringify(value),
-						defaultValue,
-						schema,
-					},
-				],
-				clientId,
-				undoLabel: null,
-				redoLabel: null,
-			}),
-		errorLabel: 'Could not save sequence prop',
-	});
 };

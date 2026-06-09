@@ -16,6 +16,8 @@ import {
 } from '../effects/use-memoized-effects.js';
 import {addSequenceStackTraces} from '../enable-sequence-stack-traces.js';
 import {
+	durationInFramesField,
+	fromField,
 	hiddenField,
 	sequenceVisualStyleSchema,
 	type SequenceSchema,
@@ -30,9 +32,12 @@ import {Canvas} from './canvas';
 import type {RemotionImageDecoder} from './decode-image.js';
 import {decodeImage} from './decode-image.js';
 import type {AnimatedImageProps, RemotionAnimatedImageProps} from './props';
+import {serializeRequestInit} from './request-init';
 import {resolveAnimatedImageSource} from './resolve-image-source';
 
 const animatedImageSchema = {
+	durationInFrames: durationInFramesField,
+	from: fromField,
 	playbackRate: {
 		type: 'number',
 		min: 0,
@@ -40,6 +45,8 @@ const animatedImageSchema = {
 		step: 0.1,
 		default: 1,
 		description: 'Playback Rate',
+		hiddenFromList: false,
+		keyframable: false,
 	},
 	...sequenceVisualStyleSchema,
 	hidden: hiddenField,
@@ -63,6 +70,7 @@ const AnimatedImageContent = forwardRef<
 			loopBehavior = 'loop',
 			playbackRate = 1,
 			fit = 'fill',
+			requestInit,
 			effects,
 			controls,
 			...props
@@ -83,6 +91,9 @@ const AnimatedImageContent = forwardRef<
 		const currentTime = frame / playbackRate / fps;
 		const currentTimeRef = useRef<number>(currentTime);
 		currentTimeRef.current = currentTime;
+		const requestInitKey = serializeRequestInit(requestInit);
+		const requestInitRef = useRef(requestInit);
+		requestInitRef.current = requestInit;
 
 		const ref = useRef<AnimatedImageCanvasRef>(null);
 
@@ -107,6 +118,7 @@ const AnimatedImageContent = forwardRef<
 			decodeImage({
 				resolvedSrc,
 				signal: controller.signal,
+				requestInit: requestInitRef.current,
 				currentTime: currentTimeRef.current,
 				initialLoopBehavior,
 			})
@@ -136,6 +148,7 @@ const AnimatedImageContent = forwardRef<
 			resolvedSrc,
 			decodeHandle,
 			onError,
+			requestInitKey,
 			initialLoopBehavior,
 			continueRender,
 		]);
@@ -227,6 +240,7 @@ const AnimatedImageInner = ({
 	className,
 	style,
 	durationInFrames,
+	requestInit,
 	effects = [],
 	_experimentalControls: controls,
 	ref,
@@ -256,6 +270,7 @@ const AnimatedImageInner = ({
 		id,
 		className,
 		style,
+		requestInit,
 	};
 
 	return (
@@ -279,10 +294,11 @@ const AnimatedImageInner = ({
 	);
 };
 
-export const AnimatedImage = wrapInSchema(
-	AnimatedImageInner,
-	animatedImageSchema,
-);
+export const AnimatedImage = wrapInSchema({
+	Component: AnimatedImageInner,
+	schema: animatedImageSchema,
+	supportsEffects: true,
+});
 
 AnimatedImage.displayName = 'AnimatedImage';
 

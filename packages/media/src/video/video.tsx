@@ -23,6 +23,7 @@ const videoSchema = {
 		step: 0.01,
 		default: 1,
 		description: 'Volume',
+		hiddenFromList: false,
 	},
 	playbackRate: {
 		type: 'number',
@@ -30,6 +31,8 @@ const videoSchema = {
 		step: 0.01,
 		default: 1,
 		description: 'Playback Rate',
+		hiddenFromList: false,
+		keyframable: false,
 	},
 	hidden: {
 		type: 'boolean',
@@ -78,6 +81,7 @@ const InnerVideo: React.FC<
 	effects,
 	setMediaDurationInSeconds,
 	refForOutline,
+	...props
 }) => {
 	const environment = useRemotionEnvironment();
 
@@ -108,6 +112,7 @@ const InnerVideo: React.FC<
 	if (environment.isRendering) {
 		return (
 			<VideoForRendering
+				{...props}
 				audioStreamIndex={audioStreamIndex ?? 0}
 				className={className}
 				delayRenderRetries={delayRenderRetries ?? null}
@@ -143,6 +148,7 @@ const InnerVideo: React.FC<
 
 	return (
 		<VideoForPreview
+			{...props}
 			setMediaDurationInSeconds={setMediaDurationInSeconds}
 			audioStreamIndex={audioStreamIndex ?? 0}
 			className={className}
@@ -215,6 +221,7 @@ const VideoInner: React.FC<
 	durationInFrames,
 	from,
 	hidden,
+	...props
 }) => {
 	const fallbackLogLevel = Internals.useLogLevel();
 	const [mediaVolume] = Internals.useMediaVolumeState();
@@ -308,6 +315,7 @@ const VideoInner: React.FC<
 			hidden={hidden}
 		>
 			<InnerVideo
+				{...props}
 				audioStreamIndex={audioStreamIndex ?? 0}
 				className={className}
 				delayRenderRetries={delayRenderRetries ?? null}
@@ -350,6 +358,10 @@ const VideoInner: React.FC<
 	);
 };
 
-export const Video = Internals.wrapInSchema(VideoInner, videoSchema);
+export const Video = Internals.wrapInSchema({
+	Component: VideoInner,
+	schema: videoSchema,
+	supportsEffects: true,
+});
 
 Internals.addSequenceStackTraces(Video);

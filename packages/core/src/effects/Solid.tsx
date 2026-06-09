@@ -10,6 +10,8 @@ import React, {
 import type {SequenceControls} from '../CompositionManager.js';
 import {addSequenceStackTraces} from '../enable-sequence-stack-traces.js';
 import {
+	durationInFramesField,
+	fromField,
 	hiddenField,
 	sequenceVisualStyleSchema,
 	type SequenceSchema,
@@ -36,6 +38,25 @@ type OptionalProps = {
 	readonly effects: EffectsProp;
 	readonly className: string | undefined;
 	readonly style: React.CSSProperties | undefined;
+	readonly pixelDensity: number | undefined;
+};
+
+const resolveSolidPixelDensity = (pixelDensity: number | undefined): number => {
+	if (pixelDensity === undefined) {
+		return 1;
+	}
+
+	if (
+		typeof pixelDensity !== 'number' ||
+		!Number.isFinite(pixelDensity) ||
+		pixelDensity <= 0
+	) {
+		throw new Error(
+			`<Solid>: \`pixelDensity\` must be a positive finite number. Received: ${String(pixelDensity)}.`,
+		);
+	}
+
+	return pixelDensity;
 };
 
 type InnerSolidProps = MandatoryProps &
@@ -45,6 +66,8 @@ type InnerSolidProps = MandatoryProps &
 export type SolidProps = MandatoryProps & Partial<OptionalProps>;
 
 const solidSchema = {
+	durationInFrames: durationInFramesField,
+	from: fromField,
 	color: {
 		type: 'color',
 		default: 'transparent',
@@ -56,6 +79,7 @@ const solidSchema = {
 		step: 1,
 		default: 1920,
 		description: 'Width',
+		hiddenFromList: false,
 	},
 	height: {
 		type: 'number',
@@ -63,6 +87,7 @@ const solidSchema = {
 		step: 1,
 		default: 1080,
 		description: 'Height',
+		hiddenFromList: false,
 	},
 	...sequenceVisualStyleSchema,
 	hidden: hiddenField,
@@ -80,10 +105,15 @@ const SolidInner: React.FC<
 	effects = [],
 	className,
 	style,
+	pixelDensity,
 	overrideId,
 	reference,
 }) => {
 	const {delayRender, continueRender, cancelRender} = useDelayRender();
+
+	const resolvedPixelDensity = resolveSolidPixelDensity(pixelDensity);
+	const canvasWidth = Math.ceil(width * resolvedPixelDensity);
+	const canvasHeight = Math.ceil(height * resolvedPixelDensity);
 
 	const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(
 		null,
@@ -150,12 +180,12 @@ const SolidInner: React.FC<
 		}
 
 		runEffectChain({
-			state: chainState.get(width, height)!,
+			state: chainState.get(canvasWidth, canvasHeight)!,
 			source: sourceCanvas,
 			effects: memoizedEffects,
 			output: outputCanvas,
-			width,
-			height,
+			width: canvasWidth,
+			height: canvasHeight,
 		})
 			.then((completed) => {
 				if (completed) {
@@ -174,21 +204,29 @@ const SolidInner: React.FC<
 		outputCanvas,
 		sourceCanvas,
 		chainState,
-		width,
-		height,
+		canvasWidth,
+		canvasHeight,
 		delayRender,
 		continueRender,
 		cancelRender,
 		memoizedEffects,
 	]);
 
+	const canvasStyle = useMemo(() => {
+		return {
+			width,
+			height,
+			...(style ?? {}),
+		};
+	}, [height, style, width]);
+
 	return (
 		<canvas
 			ref={canvasRef}
-			width={width}
-			height={height}
+			width={canvasWidth}
+			height={canvasHeight}
 			className={className}
-			style={style}
+			style={canvasStyle}
 		/>
 	);
 };
@@ -216,6 +254,7 @@ const SolidOuter = forwardRef<
 			from,
 			hidden,
 			showInTimeline,
+			pixelDensity,
 			...props
 		},
 		ref,
@@ -255,13 +294,18 @@ const SolidOuter = forwardRef<
 					className={className}
 					style={style}
 					effects={effects}
+					pixelDensity={pixelDensity}
 				/>
 			</Sequence>
 		);
 	},
 );
 
-export const Solid = wrapInSchema(SolidOuter, solidSchema);
+export const Solid = wrapInSchema({
+	Component: SolidOuter,
+	schema: solidSchema,
+	supportsEffects: true,
+});
 
 Solid.displayName = 'Solid';
 

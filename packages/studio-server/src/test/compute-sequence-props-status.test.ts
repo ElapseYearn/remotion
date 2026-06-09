@@ -45,13 +45,16 @@ test('canUpdateSequenceProps should flag computed props', () => {
 	}
 
 	expect(result.props.durationInFrames).toEqual({
-		canUpdate: true,
+		status: 'static',
 		codeValue: 60,
 	});
-	expect(result.props.hueShift).toEqual({canUpdate: true, codeValue: 30});
-	expect(result.props.seed).toEqual({canUpdate: false, reason: 'computed'});
+	expect(result.props.hueShift).toEqual({
+		status: 'static',
+		codeValue: 30,
+	});
+	expect(result.props.seed).toEqual({status: 'computed'});
 	expect(result.props.nonExistentProp).toEqual({
-		canUpdate: true,
+		status: 'static',
 		codeValue: undefined,
 	});
 });
@@ -78,8 +81,7 @@ export const Example: React.FC = () => {
 	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
 
 	expect(result.props.color).toEqual({
-		canUpdate: false,
-		reason: 'keyframed',
+		status: 'keyframed',
 		interpolationFunction: 'interpolateColors',
 		keyframes: [
 			{frame: 0, value: 'red'},
@@ -87,6 +89,136 @@ export const Example: React.FC = () => {
 		],
 		easing: ['linear'],
 		clamping: {left: 'clamp', right: 'clamp'},
+		posterize: undefined,
+	});
+});
+
+test('computeSequencePropsStatus should return easing for interpolated color props', () => {
+	const input = `import React from 'react';
+import {Easing, Solid, interpolateColors, useCurrentFrame} from 'remotion';
+
+export const Example: React.FC = () => {
+\tconst frame = useCurrentFrame();
+\treturn (
+\t\t<Solid color={interpolateColors(frame, [0, 100, 200], ['red', 'green', 'blue'], {easing: [Easing.bezier(0.42, 0, 1, 1), Easing.linear], posterize: 2})} width={100} height={100} />
+\t);
+};
+`;
+	const result = computeSequencePropsStatusFromContent({
+		fileContents: input,
+		nodePath: getNodePathFromContent(input, 7),
+		keys: ['color'],
+		effects: [],
+	});
+
+	expect(result.canUpdate).toBe(true);
+	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
+
+	expect(result.props.color).toEqual({
+		status: 'keyframed',
+		interpolationFunction: 'interpolateColors',
+		keyframes: [
+			{frame: 0, value: 'red'},
+			{frame: 100, value: 'green'},
+			{frame: 200, value: 'blue'},
+		],
+		easing: [[0.42, 0, 1, 1], 'linear'],
+		clamping: {left: 'clamp', right: 'clamp'},
+		posterize: 2,
+	});
+});
+
+test('computeSequencePropsStatus should return keyframes for interpolated translate props', () => {
+	const input = `import React from 'react';
+import {Sequence, interpolate, useCurrentFrame} from 'remotion';
+
+export const Example: React.FC = () => {
+\tconst frame = useCurrentFrame();
+\treturn (
+\t\t<Sequence style={{translate: interpolate(frame, [0, 100], ['0px 59px', '100px 20px'])}} />
+\t);
+};
+`;
+	const result = computeSequencePropsStatusFromContent({
+		fileContents: input,
+		nodePath: getNodePathFromContent(input, 7),
+		keys: ['style.translate'],
+		effects: [],
+	});
+
+	expect(result.canUpdate).toBe(true);
+	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
+
+	expect(result.props['style.translate']).toEqual({
+		status: 'keyframed',
+		interpolationFunction: 'interpolate',
+		keyframes: [
+			{frame: 0, value: '0px 59px'},
+			{frame: 100, value: '100px 20px'},
+		],
+		easing: ['linear'],
+		clamping: {left: 'extend', right: 'extend'},
+		posterize: undefined,
+	});
+});
+
+test('computeSequencePropsStatus should flag interpolations over computed values as computed', () => {
+	const input = `import React from 'react';
+import {Sequence, interpolate, useCurrentFrame} from 'remotion';
+
+export const Example: React.FC = () => {
+\tconst frame = useCurrentFrame();
+\tconst progress = interpolate(frame, [0, 100], [0, 1], {posterize: 3});
+\treturn (
+\t\t<Sequence style={{translate: interpolate(progress, [0, 1], ['0px 59px', '100px 20px'])}} />
+\t);
+};
+`;
+	const result = computeSequencePropsStatusFromContent({
+		fileContents: input,
+		nodePath: getNodePathFromContent(input, 8),
+		keys: ['style.translate'],
+		effects: [],
+	});
+
+	expect(result.canUpdate).toBe(true);
+	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
+
+	expect(result.props['style.translate']).toEqual({
+		status: 'computed',
+	});
+});
+
+test('computeSequencePropsStatus should return keyframes for interpolated rotate props', () => {
+	const input = `import React from 'react';
+import {Sequence, interpolate, useCurrentFrame} from 'remotion';
+
+export const Example: React.FC = () => {
+\tconst frame = useCurrentFrame();
+\treturn (
+\t\t<Sequence style={{rotate: interpolate(frame, [55, 68], ['19deg', '23deg'])}} />
+\t);
+};
+`;
+	const result = computeSequencePropsStatusFromContent({
+		fileContents: input,
+		nodePath: getNodePathFromContent(input, 7),
+		keys: ['style.rotate'],
+		effects: [],
+	});
+
+	expect(result.canUpdate).toBe(true);
+	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
+
+	expect(result.props['style.rotate']).toEqual({
+		status: 'keyframed',
+		interpolationFunction: 'interpolate',
+		keyframes: [
+			{frame: 55, value: '19deg'},
+			{frame: 68, value: '23deg'},
+		],
+		easing: ['linear'],
+		clamping: {left: 'extend', right: 'extend'},
 		posterize: undefined,
 	});
 });
@@ -123,11 +255,11 @@ test('computeSequencePropsStatus should detect static nested props', () => {
 	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
 
 	expect(result.props['style.opacity']).toEqual({
-		canUpdate: true,
+		status: 'static',
 		codeValue: 0.5,
 	});
 	expect(result.props['style.scale']).toEqual({
-		canUpdate: true,
+		status: 'static',
 		codeValue: 2,
 	});
 });
@@ -147,12 +279,11 @@ test('computeSequencePropsStatus should flag computed nested props', () => {
 
 	// opacity uses getOpacity() — computed
 	expect(result.props['style.opacity']).toEqual({
-		canUpdate: false,
-		reason: 'computed',
+		status: 'computed',
 	});
 	// scale is static
 	expect(result.props['style.scale']).toEqual({
-		canUpdate: true,
+		status: 'static',
 		codeValue: 2,
 	});
 });
@@ -172,8 +303,7 @@ test('computeSequencePropsStatus should flag computed when parent is not an obje
 
 	// style={dynamicStyles} — entire parent is computed
 	expect(result.props['style.opacity']).toEqual({
-		canUpdate: false,
-		reason: 'computed',
+		status: 'computed',
 	});
 });
 
@@ -191,7 +321,7 @@ test('computeSequencePropsStatus should report unset nested props as undefined',
 	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
 
 	expect(result.props['style.rotate']).toEqual({
-		canUpdate: true,
+		status: 'static',
 		codeValue: undefined,
 	});
 });
@@ -210,7 +340,7 @@ test('computeSequencePropsStatus should report unset when parent attribute missi
 	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
 
 	expect(result.props['style.opacity']).toEqual({
-		canUpdate: true,
+		status: 'static',
 		codeValue: undefined,
 	});
 });
@@ -229,8 +359,7 @@ test('computeSequencePropsStatus should return keyframes for interpolated style 
 	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
 
 	expect(result.props['style.scale']).toEqual({
-		canUpdate: false,
-		reason: 'keyframed',
+		status: 'keyframed',
 		interpolationFunction: 'interpolate',
 		keyframes: [
 			{frame: 0, value: 2},
@@ -269,8 +398,7 @@ export const Example: React.FC = () => {
 	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
 
 	expect(result.props['style.scale']).toEqual({
-		canUpdate: false,
-		reason: 'keyframed',
+		status: 'keyframed',
 		interpolationFunction: 'interpolate',
 		keyframes: [
 			{frame: 0, value: 1},
@@ -309,8 +437,7 @@ export const Example: React.FC = () => {
 	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
 
 	expect(result.props['style.scale']).toEqual({
-		canUpdate: false,
-		reason: 'keyframed',
+		status: 'keyframed',
 		interpolationFunction: 'interpolate',
 		keyframes: [
 			{frame: 0, value: 1},
@@ -345,8 +472,7 @@ export const Example: React.FC = () => {
 	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
 
 	expect(result.props.color).toEqual({
-		canUpdate: false,
-		reason: 'keyframed',
+		status: 'keyframed',
 		interpolationFunction: 'interpolateColors',
 		keyframes: [
 			{frame: 0, value: 'red'},
@@ -382,8 +508,7 @@ export const Example: React.FC = () => {
 	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
 
 	expect(result.props['style.scale']).toEqual({
-		canUpdate: false,
-		reason: 'computed',
+		status: 'computed',
 	});
 });
 
@@ -412,7 +537,6 @@ export const Example: React.FC = () => {
 	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
 
 	expect(result.props['style.scale']).toEqual({
-		canUpdate: false,
-		reason: 'computed',
+		status: 'computed',
 	});
 });

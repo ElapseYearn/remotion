@@ -10,11 +10,7 @@ const removeKeyframeFromPropStatus = ({
 	status: CanUpdateSequencePropStatus;
 	frame: number;
 }): CanUpdateSequencePropStatus => {
-	if (status.canUpdate) {
-		return status;
-	}
-
-	if (status.reason !== 'keyframed') {
+	if (status.status !== 'keyframed') {
 		return status;
 	}
 
@@ -26,7 +22,7 @@ const removeKeyframeFromPropStatus = ({
 	const keyframes = status.keyframes.filter((_, i) => i !== index);
 	if (keyframes.length === 0) {
 		return {
-			canUpdate: true,
+			status: 'static',
 			codeValue: status.keyframes[index].value,
 		};
 	}
@@ -72,6 +68,24 @@ export const optimisticDeleteSequenceKeyframe = ({
 			[fieldKey]: removeKeyframeFromPropStatus({status, frame}),
 		},
 	};
+};
+
+export const optimisticDeleteSequenceKeyframes = ({
+	previous,
+	keyframes,
+}: {
+	previous: CanUpdateSequencePropsResponse;
+	keyframes: {fieldKey: string; frame: number}[];
+}): CanUpdateSequencePropsResponse => {
+	return keyframes.reduce(
+		(current, keyframe) =>
+			optimisticDeleteSequenceKeyframe({
+				previous: current,
+				fieldKey: keyframe.fieldKey,
+				frame: keyframe.frame,
+			}),
+		previous,
+	);
 };
 
 export const optimisticDeleteEffectKeyframe = ({
@@ -121,4 +135,23 @@ export const optimisticDeleteEffectKeyframe = ({
 		...previous,
 		effects,
 	};
+};
+
+export const optimisticDeleteEffectKeyframes = ({
+	previous,
+	keyframes,
+}: {
+	previous: CanUpdateSequencePropsResponse;
+	keyframes: {effectIndex: number; fieldKey: string; frame: number}[];
+}): CanUpdateSequencePropsResponse => {
+	return keyframes.reduce(
+		(current, keyframe) =>
+			optimisticDeleteEffectKeyframe({
+				previous: current,
+				effectIndex: keyframe.effectIndex,
+				fieldKey: keyframe.fieldKey,
+				frame: keyframe.frame,
+			}),
+		previous,
+	);
 };

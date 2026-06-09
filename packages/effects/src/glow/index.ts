@@ -32,6 +32,7 @@ const glowSchema = {
 		step: 1,
 		default: DEFAULT_RADIUS,
 		description: 'Radius',
+		hiddenFromList: false,
 	},
 	intensity: {
 		type: 'number',
@@ -40,6 +41,7 @@ const glowSchema = {
 		step: 0.1,
 		default: DEFAULT_INTENSITY,
 		description: 'Intensity',
+		hiddenFromList: false,
 	},
 	threshold: {
 		type: 'number',
@@ -48,6 +50,7 @@ const glowSchema = {
 		step: 0.01,
 		default: DEFAULT_THRESHOLD,
 		description: 'Threshold',
+		hiddenFromList: false,
 	},
 	color: {
 		type: 'color',
@@ -96,7 +99,7 @@ const validateGlowParams = (params: GlowParams): void => {
 
 export const glow = createEffect<GlowParams, GlowState>({
 	type: 'remotion/glow',
-	label: 'Glow',
+	label: 'glow()',
 	documentationLink: 'https://www.remotion.dev/docs/effects/glow',
 	backend: 'webgl2',
 	calculateKey: (params) => {

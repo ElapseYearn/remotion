@@ -102,12 +102,14 @@ export const calculateTimeline = ({
 			keyframeDisplayOffset: hasKeyframeRows
 				? cascadedStart - sequence.from
 				: 0,
+			sequenceFrameOffset: visibleStart - cascadedStart,
 			nodePathInfo: nodePath
 				? {
 						sequenceSubscriptionKey: nodePath,
 						auxiliaryKeys: [],
 						index: 0,
 						numberOfSequencesWithThisNodePath: 0,
+						supportsEffects: sequence.controls?.supportsEffects === true,
 					}
 				: null,
 		});
@@ -162,6 +164,7 @@ export const calculateTimeline = ({
 					auxiliaryKeys: track.nodePathInfo.auxiliaryKeys,
 					index,
 					numberOfSequencesWithThisNodePath: 0,
+					supportsEffects: track.nodePathInfo.supportsEffects,
 				},
 			};
 		})
@@ -182,6 +185,7 @@ export const calculateTimeline = ({
 					index: track.nodePathInfo.index,
 					numberOfSequencesWithThisNodePath:
 						nodePathIndexCounters.get(key) ?? 0,
+					supportsEffects: track.nodePathInfo.supportsEffects,
 				},
 			};
 		});

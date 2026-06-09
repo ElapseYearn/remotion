@@ -2,6 +2,7 @@ import {barrelDistortion} from '@remotion/effects/barrel-distortion';
 import {blur} from '@remotion/effects/blur';
 import {brightness} from '@remotion/effects/brightness';
 import {chromaticAberration} from '@remotion/effects/chromatic-aberration';
+import {colorKey} from '@remotion/effects/color-key';
 import {contrast} from '@remotion/effects/contrast';
 import {dotGrid} from '@remotion/effects/dot-grid';
 import {dropShadow} from '@remotion/effects/drop-shadow';
@@ -14,9 +15,11 @@ import {halftone} from '@remotion/effects/halftone';
 import {halftoneLinearGradient} from '@remotion/effects/halftone-linear-gradient';
 import {hue} from '@remotion/effects/hue';
 import {invert} from '@remotion/effects/invert';
+import {linearProgressiveBlur} from '@remotion/effects/linear-progressive-blur';
 import {lines} from '@remotion/effects/lines';
 import {mirror} from '@remotion/effects/mirror';
 import {noise} from '@remotion/effects/noise';
+import {noiseDisplacement} from '@remotion/effects/noise-displacement';
 import {pixelDissolve} from '@remotion/effects/pixel-dissolve';
 import {rings} from '@remotion/effects/rings';
 import {saturation} from '@remotion/effects/saturation';
@@ -37,6 +40,7 @@ import {EffectsBarrelDistortionPreview} from '../effects/effects-barrel-distorti
 import {EffectsBlurPreview} from '../effects/effects-blur-preview';
 import {EffectsBrightnessPreview} from '../effects/effects-brightness-preview';
 import {EffectsChromaticAberrationPreview} from '../effects/effects-chromatic-aberration-preview';
+import {EffectsColorKeyPreview} from '../effects/effects-color-key-preview';
 import {EffectsContrastPreview} from '../effects/effects-contrast-preview';
 import {EffectsDotGridPreview} from '../effects/effects-dot-grid-preview';
 import {EffectsDropShadowPreview} from '../effects/effects-drop-shadow-preview';
@@ -50,8 +54,13 @@ import {EffectsHalftonePreview} from '../effects/effects-halftone-preview';
 import {EffectsHuePreview} from '../effects/effects-hue-preview';
 import {EffectsInvertPreview} from '../effects/effects-invert-preview';
 import {EffectsLightLeakPreview} from '../effects/effects-light-leak-preview';
+import {EffectsLinearProgressiveBlurPreview} from '../effects/effects-linear-progressive-blur-preview';
 import {EffectsLinesPreview} from '../effects/effects-lines-preview';
 import {EffectsMirrorPreview} from '../effects/effects-mirror-preview';
+import {
+	EffectsNoiseDisplacementPreview,
+	NOISE_DISPLACEMENT_PREVIEW_PARAMS,
+} from '../effects/effects-noise-displacement-preview';
 import {EffectsNoisePreview} from '../effects/effects-noise-preview';
 import {EffectsPixelDissolvePreview} from '../effects/effects-pixel-dissolve-preview';
 import {EffectsRingsPreview} from '../effects/effects-rings-preview';
@@ -99,6 +108,19 @@ export const effectsDemos: EffectsDemoType[] = [
 		effectImportPath: '@remotion/effects/contrast',
 		comp: EffectsContrastPreview,
 		schema: contrast().definition.schema,
+	},
+	{
+		...defaults,
+		id: 'effects-color-key',
+		effectName: 'colorKey',
+		effectImportPath: '@remotion/effects/color-key',
+		comp: EffectsColorKeyPreview,
+		schema: colorKey().definition.schema,
+		durationInFrames: 150,
+		autoPlay: true,
+		initialValues: {
+			similarity: 0.45,
+		},
 	},
 	{
 		...defaults,
@@ -209,6 +231,16 @@ export const effectsDemos: EffectsDemoType[] = [
 	},
 	{
 		...defaults,
+		id: 'effects-noise-displacement',
+		effectName: 'noiseDisplacement',
+		effectImportPath: '@remotion/effects/noise-displacement',
+		comp: EffectsNoiseDisplacementPreview,
+		schema: noiseDisplacement(NOISE_DISPLACEMENT_PREVIEW_PARAMS).definition
+			.schema,
+		initialValues: NOISE_DISPLACEMENT_PREVIEW_PARAMS,
+	},
+	{
+		...defaults,
 		id: 'effects-white-noise',
 		effectName: 'whiteNoise',
 		effectImportPath: '@remotion/effects/white-noise',
@@ -300,6 +332,14 @@ export const effectsDemos: EffectsDemoType[] = [
 	},
 	{
 		...defaults,
+		id: 'effects-linear-progressive-blur',
+		effectName: 'linearProgressiveBlur',
+		effectImportPath: '@remotion/effects/linear-progressive-blur',
+		comp: EffectsLinearProgressiveBlurPreview,
+		schema: linearProgressiveBlur().definition.schema,
+	},
+	{
+		...defaults,
 		id: 'effects-chromatic-aberration',
 		effectName: 'chromaticAberration',
 		effectImportPath: '@remotion/effects/chromatic-aberration',
@@ -371,6 +411,7 @@ export const effectsDemos: EffectsDemoType[] = [
 		schema: starburstEffectSchema,
 		initialValues: {
 			rays: 16,
+			colors: ['#ff6600', '#ffff00'],
 		},
 	},
 	{

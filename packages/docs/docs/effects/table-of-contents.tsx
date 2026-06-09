@@ -38,6 +38,13 @@ const categories: {
 				description: 'Contrast adjustment effect',
 			},
 			{
+				link: '/docs/effects/color-key',
+				preview: '/img/effects-color-key-preview.png',
+				alt: 'color key effect preview',
+				name: 'colorKey()',
+				description: 'Remove a key color (greenscreen)',
+			},
+			{
 				link: '/docs/effects/duotone',
 				preview: '/img/effects-duotone-preview.png',
 				alt: 'duotone effect preview',
@@ -90,6 +97,13 @@ const categories: {
 				alt: 'blur effect preview',
 				name: 'blur()',
 				description: 'Gaussian blur effect',
+			},
+			{
+				link: '/docs/effects/linear-progressive-blur',
+				preview: '/img/effects-linear-progressive-blur-preview.png',
+				alt: 'linear progressive blur effect preview',
+				name: 'linearProgressiveBlur()',
+				description: 'Gradient-controlled blur effect',
 			},
 			{
 				link: '/docs/effects/drop-shadow',
@@ -203,6 +217,20 @@ const categories: {
 				description: 'Source-image halftone effect',
 			},
 			{
+				link: '/docs/effects/noise',
+				preview: '/img/effects-noise-preview.png',
+				alt: 'noise effect preview',
+				name: 'noise()',
+				description: 'Procedural grain effect',
+			},
+			{
+				link: '/docs/effects/noise-displacement',
+				preview: '/img/effects-noise-displacement-preview.png',
+				alt: 'noise displacement effect preview',
+				name: 'noiseDisplacement()',
+				description: 'Localized noisy displacement',
+			},
+			{
 				link: '/docs/effects/pixel-dissolve',
 				preview: '/img/effects-pixel-dissolve-preview.png',
 				alt: 'pixel dissolve effect preview',
@@ -248,13 +276,6 @@ const categories: {
 				alt: 'halftone linear gradient effect preview',
 				name: 'halftoneLinearGradient()',
 				description: 'Procedural dot gradient effect',
-			},
-			{
-				link: '/docs/effects/noise',
-				preview: '/img/effects-noise-preview.png',
-				alt: 'noise effect preview',
-				name: 'noise()',
-				description: 'Procedural grain effect',
 			},
 			{
 				link: '/docs/effects/white-noise',
