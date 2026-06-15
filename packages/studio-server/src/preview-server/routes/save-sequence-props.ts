@@ -7,9 +7,9 @@ import type {
 	SaveSequencePropsResult,
 } from '@remotion/studio-shared';
 import {getAllSchemaKeys} from '@remotion/studio-shared';
-import {NoReactInternals} from 'remotion/no-react';
 import {
 	type RemovedProp,
+	type SequencePropsNodeUpdate,
 	updateMultipleSequenceProps,
 } from '../../codemods/update-sequence-props/update-sequence-props';
 import {writeFileAndNotifyFileWatchers} from '../../file-watcher';
@@ -54,6 +54,31 @@ type SequencePropEditResult = {
 	logLine: number;
 	removedProps: RemovedProp[];
 	formatted: boolean;
+};
+
+export const convertSequencePropEditToCodemodChange = (
+	edit: Pick<
+		ResolvedSequencePropEdit,
+		'nodePath' | 'key' | 'value' | 'defaultValue' | 'schema'
+	>,
+): SequencePropsNodeUpdate => {
+	return {
+		nodePath: edit.nodePath.nodePath,
+		updates: [
+			{
+				key: edit.key,
+				value: edit.value,
+				defaultValue: edit.defaultValue,
+			},
+		],
+		schema: edit.schema,
+	};
+};
+
+export const shouldSuppressHmrForSequencePropEdits = (
+	edits: readonly {key: string}[],
+): boolean => {
+	return edits.every((edit) => edit.key !== 'showInTimeline');
 };
 
 export const saveSequencePropsHandler: ApiHandler<
@@ -120,19 +145,7 @@ export const saveSequencePropsHandler: ApiHandler<
 				results: updateResults,
 			} = await updateMultipleSequenceProps({
 				input: fileContents,
-				changes: group.edits.map((edit) => {
-					return {
-						nodePath: edit.nodePath.nodePath,
-						updates: [
-							{
-								key: edit.key,
-								value: edit.value,
-								defaultValue: edit.defaultValue,
-							},
-						],
-						schema: NoReactInternals.sequenceSchema,
-					};
-				}),
+				changes: group.edits.map(convertSequencePropEditToCodemodChange),
 				prettierConfigOverride: null,
 			});
 
@@ -158,6 +171,7 @@ export const saveSequencePropsHandler: ApiHandler<
 
 		const undoMessage = `↩️  ${undoLabel}`;
 		const redoMessage = `↪️  ${redoLabel}`;
+		const suppressHmr = shouldSuppressHmrForSequencePropEdits(edits);
 
 		pushTransactionToUndoStack({
 			snapshots,
@@ -165,12 +179,15 @@ export const saveSequencePropsHandler: ApiHandler<
 			remotionRoot,
 			description: {undoMessage, redoMessage},
 			entryType: 'sequence-props',
-			suppressHmrOnFileRestore: true,
+			suppressHmrOnFileRestore: suppressHmr,
 		});
 
 		for (const [absolutePath, output] of outputByPath) {
 			suppressUndoStackInvalidation(absolutePath);
-			suppressBundlerUpdateForFile(absolutePath);
+			if (suppressHmr) {
+				suppressBundlerUpdateForFile(absolutePath);
+			}
+
 			writeFileAndNotifyFileWatchers(absolutePath, output, clientId);
 		}
 
@@ -213,6 +230,7 @@ export const saveSequencePropsHandler: ApiHandler<
 				fileContents: output,
 				keys: getAllSchemaKeys(edit.schema),
 				nodePath: edit.nodePath.nodePath,
+				componentIdentity: null,
 				effects: [],
 			});
 

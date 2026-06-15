@@ -21,6 +21,7 @@ import {
 import {addSequenceStackTraces} from '../enable-sequence-stack-traces.js';
 import {usePreload} from '../prefetch.js';
 import {
+	freezeField,
 	fromField,
 	hiddenField,
 	sequenceVisualStyleSchema,
@@ -38,6 +39,7 @@ import type {CanvasImageCanvasProps, CanvasImageProps} from './props.js';
 export const canvasImageSchema = {
 	durationInFrames: durationInFramesField,
 	from: fromField,
+	freeze: freezeField,
 	fit: {
 		type: 'enum',
 		default: 'fill',
@@ -413,6 +415,7 @@ const CanvasImageInner = forwardRef<
 			delayRenderTimeoutInMilliseconds,
 			durationInFrames,
 			from,
+			freeze,
 			hidden,
 			name,
 			showInTimeline,
@@ -439,6 +442,7 @@ const CanvasImageInner = forwardRef<
 				layout="none"
 				from={from ?? 0}
 				durationInFrames={durationInFrames ?? Infinity}
+				freeze={freeze}
 				hidden={hidden}
 				showInTimeline={showInTimeline ?? true}
 				name={name ?? '<CanvasImage>'}
@@ -484,6 +488,7 @@ const CanvasImageInner = forwardRef<
  */
 export const CanvasImage = wrapInSchema({
 	Component: CanvasImageInner,
+	componentIdentity: 'dev.remotion.remotion.CanvasImage',
 	schema: canvasImageSchema,
 	supportsEffects: true,
 });

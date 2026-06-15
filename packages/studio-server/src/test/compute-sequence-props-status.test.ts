@@ -2,6 +2,7 @@ import {expect, test} from 'bun:test';
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {parseAst} from '../codemods/parse-ast';
+import {JsxElementIdentityMismatchError} from '../preview-server/jsx-component-identity';
 import {
 	computeSequencePropsStatus,
 	computeSequencePropsStatusFromContent,
@@ -34,6 +35,7 @@ test('canUpdateSequenceProps should flag computed props', () => {
 	const result = computeSequencePropsStatus({
 		fileName: filePath,
 		nodePath: getNodePath(filePath, 8),
+		componentIdentity: null,
 		keys: ['durationInFrames', 'seed', 'hueShift', 'nonExistentProp'],
 		effects: [],
 		remotionRoot: '/',
@@ -73,6 +75,7 @@ export const Example: React.FC = () => {
 	const result = computeSequencePropsStatusFromContent({
 		fileContents: input,
 		nodePath: getNodePathFromContent(input, 7),
+		componentIdentity: null,
 		keys: ['color'],
 		effects: [],
 	});
@@ -93,6 +96,58 @@ export const Example: React.FC = () => {
 	});
 });
 
+test('computeSequencePropsStatus should reject a node path with the wrong component identity', () => {
+	const input = `import React from 'react';
+import {Interactive} from 'remotion';
+import {Star} from '@remotion/shapes';
+
+export const Example: React.FC = () => {
+\treturn (
+\t\t<Interactive.Div>
+\t\t\t<Star points={20} innerRadius={174} outerRadius={207} />
+\t\t</Interactive.Div>
+\t);
+};
+`;
+
+	expect(() =>
+		computeSequencePropsStatusFromContent({
+			fileContents: input,
+			nodePath: getNodePathFromContent(input, 7),
+			componentIdentity: 'dev.remotion.shapes.Star',
+			keys: ['points'],
+			effects: [],
+		}),
+	).toThrow(JsxElementIdentityMismatchError);
+});
+
+test('computeSequencePropsStatus should match namespace imports by component identity', () => {
+	const input = `import React from 'react';
+import * as Remotion from 'remotion';
+
+export const Example: React.FC = () => {
+\treturn (
+\t\t<Remotion.Sequence from={10} durationInFrames={20} />
+\t);
+};
+`;
+	const result = computeSequencePropsStatusFromContent({
+		fileContents: input,
+		nodePath: getNodePathFromContent(input, 6),
+		componentIdentity: 'dev.remotion.remotion.Sequence',
+		keys: ['from'],
+		effects: [],
+	});
+
+	expect(result.canUpdate).toBe(true);
+	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
+
+	expect(result.props.from).toEqual({
+		status: 'static',
+		codeValue: 10,
+	});
+});
+
 test('computeSequencePropsStatus should return easing for interpolated color props', () => {
 	const input = `import React from 'react';
 import {Easing, Solid, interpolateColors, useCurrentFrame} from 'remotion';
@@ -107,6 +162,7 @@ export const Example: React.FC = () => {
 	const result = computeSequencePropsStatusFromContent({
 		fileContents: input,
 		nodePath: getNodePathFromContent(input, 7),
+		componentIdentity: null,
 		keys: ['color'],
 		effects: [],
 	});
@@ -142,6 +198,7 @@ export const Example: React.FC = () => {
 	const result = computeSequencePropsStatusFromContent({
 		fileContents: input,
 		nodePath: getNodePathFromContent(input, 7),
+		componentIdentity: null,
 		keys: ['style.translate'],
 		effects: [],
 	});
@@ -162,6 +219,52 @@ export const Example: React.FC = () => {
 	});
 });
 
+test('computeSequencePropsStatus should return keyframes for String-wrapped interpolated translate props', () => {
+	const input = `import React from 'react';
+import {Easing, Sequence, interpolate, useCurrentFrame} from 'remotion';
+
+export const Example: React.FC = () => {
+\tconst frame = useCurrentFrame();
+\treturn (
+\t\t<Sequence style={{translate: String(interpolate(frame, [0, 16, 30], ['0px 59px', '100px 20px', '124px 40px'], {
+\t\t\textrapolateLeft: 'clamp',
+\t\t\textrapolateRight: 'clamp',
+\t\t\teasing: [
+\t\t\t\tEasing.bezier(0, 0, 0.58, 1),
+\t\t\t\tEasing.bezier(0.42, 0, 0.6308, 1.1405),
+\t\t\t],
+\t\t}))}} />
+\t);
+};
+`;
+	const result = computeSequencePropsStatusFromContent({
+		fileContents: input,
+		nodePath: getNodePathFromContent(input, 7),
+		componentIdentity: null,
+		keys: ['style.translate'],
+		effects: [],
+	});
+
+	expect(result.canUpdate).toBe(true);
+	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
+
+	expect(result.props['style.translate']).toEqual({
+		status: 'keyframed',
+		interpolationFunction: 'interpolate',
+		keyframes: [
+			{frame: 0, value: '0px 59px'},
+			{frame: 16, value: '100px 20px'},
+			{frame: 30, value: '124px 40px'},
+		],
+		easing: [
+			[0, 0, 0.58, 1],
+			[0.42, 0, 0.6308, 1.1405],
+		],
+		clamping: {left: 'clamp', right: 'clamp'},
+		posterize: undefined,
+	});
+});
+
 test('computeSequencePropsStatus should flag interpolations over computed values as computed', () => {
 	const input = `import React from 'react';
 import {Sequence, interpolate, useCurrentFrame} from 'remotion';
@@ -177,6 +280,7 @@ export const Example: React.FC = () => {
 	const result = computeSequencePropsStatusFromContent({
 		fileContents: input,
 		nodePath: getNodePathFromContent(input, 8),
+		componentIdentity: null,
 		keys: ['style.translate'],
 		effects: [],
 	});
@@ -203,6 +307,7 @@ export const Example: React.FC = () => {
 	const result = computeSequencePropsStatusFromContent({
 		fileContents: input,
 		nodePath: getNodePathFromContent(input, 7),
+		componentIdentity: null,
 		keys: ['style.rotate'],
 		effects: [],
 	});
@@ -232,6 +337,7 @@ test('computeSequencePropsStatus should explain why outside-project file reads w
 		computeSequencePropsStatus({
 			fileName,
 			nodePath: [],
+			componentIdentity: null,
 			keys: [],
 			effects: [],
 			remotionRoot,
@@ -246,6 +352,7 @@ test('computeSequencePropsStatus should detect static nested props', () => {
 	const result = computeSequencePropsStatus({
 		fileName: filePath,
 		nodePath: getNodePath(filePath, 7),
+		componentIdentity: null,
 		keys: ['style.opacity', 'style.scale'],
 		effects: [],
 		remotionRoot: '/',
@@ -269,6 +376,7 @@ test('computeSequencePropsStatus should flag computed nested props', () => {
 	const result = computeSequencePropsStatus({
 		fileName: filePath,
 		nodePath: getNodePath(filePath, 8),
+		componentIdentity: null,
 		keys: ['style.opacity', 'style.scale'],
 		effects: [],
 		remotionRoot: '/',
@@ -293,6 +401,7 @@ test('computeSequencePropsStatus should flag computed when parent is not an obje
 	const result = computeSequencePropsStatus({
 		fileName: filePath,
 		nodePath: getNodePath(filePath, 9),
+		componentIdentity: null,
 		keys: ['style.opacity'],
 		effects: [],
 		remotionRoot: '/',
@@ -312,6 +421,7 @@ test('computeSequencePropsStatus should report unset nested props as undefined',
 	const result = computeSequencePropsStatus({
 		fileName: filePath,
 		nodePath: getNodePath(filePath, 7),
+		componentIdentity: null,
 		keys: ['style.rotate'],
 		effects: [],
 		remotionRoot: '/',
@@ -331,6 +441,7 @@ test('computeSequencePropsStatus should report unset when parent attribute missi
 	const result = computeSequencePropsStatus({
 		fileName: filePath,
 		nodePath: getNodePath(filePath, 10),
+		componentIdentity: null,
 		keys: ['style.opacity'],
 		effects: [],
 		remotionRoot: '/',
@@ -350,6 +461,7 @@ test('computeSequencePropsStatus should return keyframes for interpolated style 
 	const result = computeSequencePropsStatus({
 		fileName: filePath,
 		nodePath: getNodePath(filePath, 8),
+		componentIdentity: null,
 		keys: ['style.scale'],
 		effects: [],
 		remotionRoot: '/',
@@ -367,6 +479,60 @@ test('computeSequencePropsStatus should return keyframes for interpolated style 
 		],
 		easing: ['linear'],
 		clamping: {left: 'extend', right: 'extend'},
+		posterize: undefined,
+	});
+});
+
+test('computeSequencePropsStatus should return keyframes for String-wrapped interpolated scale props', () => {
+	const input = `import React from 'react';
+import {Easing, Sequence, interpolate, useCurrentFrame} from 'remotion';
+
+export const Example: React.FC = () => {
+\tconst frame = useCurrentFrame();
+\treturn (
+\t\t<Sequence style={{scale: String(
+\t\t\tinterpolate(
+\t\t\t\tframe,
+\t\t\t\t[0, 16, 30],
+\t\t\t\t['1.105 1.105', '1.37 0.77', '1.611 1.611'],
+\t\t\t\t{
+\t\t\t\t\textrapolateLeft: 'clamp',
+\t\t\t\t\textrapolateRight: 'clamp',
+\t\t\t\t\teasing: [
+\t\t\t\t\t\tEasing.bezier(0, 0, 0.58, 1),
+\t\t\t\t\t\tEasing.bezier(0.42, 0, 0.6308, 1.1405),
+\t\t\t\t\t],
+\t\t\t\t},
+\t\t\t),
+\t\t)}} />
+\t);
+};
+`;
+
+	const result = computeSequencePropsStatusFromContent({
+		fileContents: input,
+		nodePath: getNodePathFromContent(input, 7),
+		componentIdentity: null,
+		keys: ['style.scale'],
+		effects: [],
+	});
+
+	expect(result.canUpdate).toBe(true);
+	if (!result.canUpdate) throw new Error('Expected canUpdate to be true');
+
+	expect(result.props['style.scale']).toEqual({
+		status: 'keyframed',
+		interpolationFunction: 'interpolate',
+		keyframes: [
+			{frame: 0, value: '1.105 1.105'},
+			{frame: 16, value: '1.37 0.77'},
+			{frame: 30, value: '1.611 1.611'},
+		],
+		easing: [
+			[0, 0, 0.58, 1],
+			[0.42, 0, 0.6308, 1.1405],
+		],
+		clamping: {left: 'clamp', right: 'clamp'},
 		posterize: undefined,
 	});
 });
@@ -390,6 +556,7 @@ export const Example: React.FC = () => {
 	const result = computeSequencePropsStatusFromContent({
 		fileContents: input,
 		nodePath: getNodePathFromContent(input, 7),
+		componentIdentity: null,
 		keys: ['style.scale'],
 		effects: [],
 	});
@@ -429,6 +596,7 @@ export const Example: React.FC = () => {
 	const result = computeSequencePropsStatusFromContent({
 		fileContents: input,
 		nodePath: getNodePathFromContent(input, 7),
+		componentIdentity: null,
 		keys: ['style.scale'],
 		effects: [],
 	});
@@ -464,6 +632,7 @@ export const Example: React.FC = () => {
 	const result = computeSequencePropsStatusFromContent({
 		fileContents: input,
 		nodePath: getNodePathFromContent(input, 7),
+		componentIdentity: null,
 		keys: ['color'],
 		effects: [],
 	});
@@ -500,6 +669,7 @@ export const Example: React.FC = () => {
 	const result = computeSequencePropsStatusFromContent({
 		fileContents: input,
 		nodePath: getNodePathFromContent(input, 8),
+		componentIdentity: null,
 		keys: ['style.scale'],
 		effects: [],
 	});
@@ -529,6 +699,7 @@ export const Example: React.FC = () => {
 	const result = computeSequencePropsStatusFromContent({
 		fileContents: input,
 		nodePath: getNodePathFromContent(input, 7),
+		componentIdentity: null,
 		keys: ['style.scale'],
 		effects: [],
 	});

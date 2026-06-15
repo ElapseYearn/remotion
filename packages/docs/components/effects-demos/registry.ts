@@ -4,6 +4,7 @@ import {brightness} from '@remotion/effects/brightness';
 import {chromaticAberration} from '@remotion/effects/chromatic-aberration';
 import {colorKey} from '@remotion/effects/color-key';
 import {contrast} from '@remotion/effects/contrast';
+import {contourLines} from '@remotion/effects/contour-lines';
 import {dotGrid} from '@remotion/effects/dot-grid';
 import {dropShadow} from '@remotion/effects/drop-shadow';
 import {duotone} from '@remotion/effects/duotone';
@@ -20,6 +21,7 @@ import {lines} from '@remotion/effects/lines';
 import {mirror} from '@remotion/effects/mirror';
 import {noise} from '@remotion/effects/noise';
 import {noiseDisplacement} from '@remotion/effects/noise-displacement';
+import {pattern} from '@remotion/effects/pattern';
 import {pixelDissolve} from '@remotion/effects/pixel-dissolve';
 import {rings} from '@remotion/effects/rings';
 import {saturation} from '@remotion/effects/saturation';
@@ -29,6 +31,7 @@ import {shine} from '@remotion/effects/shine';
 import {speckle} from '@remotion/effects/speckle';
 import {tint} from '@remotion/effects/tint';
 import {uvTranslate, xyTranslate} from '@remotion/effects/translate';
+import {tvSignalOff} from '@remotion/effects/tv-signal-off';
 import {vignette} from '@remotion/effects/vignette';
 import {wave} from '@remotion/effects/wave';
 import {waves} from '@remotion/effects/waves';
@@ -42,6 +45,7 @@ import {EffectsBrightnessPreview} from '../effects/effects-brightness-preview';
 import {EffectsChromaticAberrationPreview} from '../effects/effects-chromatic-aberration-preview';
 import {EffectsColorKeyPreview} from '../effects/effects-color-key-preview';
 import {EffectsContrastPreview} from '../effects/effects-contrast-preview';
+import {EffectsContourLinesPreview} from '../effects/effects-contour-lines-preview';
 import {EffectsDotGridPreview} from '../effects/effects-dot-grid-preview';
 import {EffectsDropShadowPreview} from '../effects/effects-drop-shadow-preview';
 import {EffectsDuotonePreview} from '../effects/effects-duotone-preview';
@@ -62,6 +66,7 @@ import {
 	NOISE_DISPLACEMENT_PREVIEW_PARAMS,
 } from '../effects/effects-noise-displacement-preview';
 import {EffectsNoisePreview} from '../effects/effects-noise-preview';
+import {EffectsPatternPreview} from '../effects/effects-pattern-preview';
 import {EffectsPixelDissolvePreview} from '../effects/effects-pixel-dissolve-preview';
 import {EffectsRingsPreview} from '../effects/effects-rings-preview';
 import {EffectsSaturationPreview} from '../effects/effects-saturation-preview';
@@ -75,6 +80,7 @@ import {
 	EffectsUvTranslatePreview,
 	EffectsXyTranslatePreview,
 } from '../effects/effects-translate-preview';
+import {EffectsTvSignalOffPreview} from '../effects/effects-tv-signal-off-preview';
 import {EffectsVignettePreview} from '../effects/effects-vignette-preview';
 import {EffectsWavePreview} from '../effects/effects-wave-preview';
 import {EffectsWavesPreview} from '../effects/effects-waves-preview';
@@ -249,6 +255,14 @@ export const effectsDemos: EffectsDemoType[] = [
 	},
 	{
 		...defaults,
+		id: 'effects-tv-signal-off',
+		effectName: 'tvSignalOff',
+		effectImportPath: '@remotion/effects/tv-signal-off',
+		comp: EffectsTvSignalOffPreview,
+		schema: tvSignalOff().definition.schema,
+	},
+	{
+		...defaults,
 		id: 'effects-scanlines',
 		effectName: 'scanlines',
 		effectImportPath: '@remotion/effects/scanlines',
@@ -262,6 +276,14 @@ export const effectsDemos: EffectsDemoType[] = [
 		effectImportPath: '@remotion/effects/lines',
 		comp: EffectsLinesPreview,
 		schema: lines().definition.schema,
+	},
+	{
+		...defaults,
+		id: 'effects-contour-lines',
+		effectName: 'contourLines',
+		effectImportPath: '@remotion/effects/contour-lines',
+		comp: EffectsContourLinesPreview,
+		schema: contourLines().definition.schema,
 	},
 	{
 		...defaults,
@@ -385,6 +407,14 @@ export const effectsDemos: EffectsDemoType[] = [
 		effectImportPath: '@remotion/effects/pixel-dissolve',
 		comp: EffectsPixelDissolvePreview,
 		schema: pixelDissolve().definition.schema,
+	},
+	{
+		...defaults,
+		id: 'effects-pattern',
+		effectName: 'pattern',
+		effectImportPath: '@remotion/effects/pattern',
+		comp: EffectsPatternPreview,
+		schema: pattern().definition.schema,
 	},
 	{
 		...defaults,

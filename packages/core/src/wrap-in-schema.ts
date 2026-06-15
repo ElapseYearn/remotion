@@ -1,12 +1,18 @@
 import React, {forwardRef, useContext, useMemo, useState} from 'react';
-import type {SequenceControls} from './CompositionManager.js';
+import type {
+	JsxComponentIdentity,
+	SequenceControls,
+} from './CompositionManager.js';
 import {deleteNestedKey} from './delete-nested-key.js';
 import {getPropStatusesCtx} from './effects/use-memoized-effects.js';
 import {
 	flattenActiveSchema,
 	getFlatSchemaWithAllKeys,
 } from './flatten-schema.js';
-import type {SequenceSchema} from './sequence-field-schema.js';
+import {
+	extendSchemaWithSequenceName,
+	type SequenceSchema,
+} from './sequence-field-schema.js';
 import {OverrideIdsToNodePathsGettersContext} from './sequence-node-path.js';
 import {
 	VisualModeDragOverridesContext,
@@ -103,17 +109,20 @@ const stackToOverrideMap: Record<string, string> = {};
 
 export const wrapInSchema = <S extends SequenceSchema, Props extends object>({
 	Component,
+	componentIdentity,
 	schema,
 	supportsEffects,
 }: {
 	Component: React.ComponentType<
 		Props & {readonly _experimentalControls: SequenceControls | undefined}
 	>;
+	componentIdentity: JsxComponentIdentity | null;
 	schema: S;
 	supportsEffects: boolean;
 }): React.ComponentType<Props> => {
 	// Schema is static for a component, so we move this outside
-	const flatSchema = getFlatSchemaWithAllKeys(schema);
+	const schemaWithSequenceName = extendSchemaWithSequenceName(schema);
+	const flatSchema = getFlatSchemaWithAllKeys(schemaWithSequenceName);
 	const flatKeys = Object.keys(flatSchema);
 
 	const Wrapped = forwardRef<unknown, Props>((props, ref) => {
@@ -187,10 +196,11 @@ export const wrapInSchema = <S extends SequenceSchema, Props extends object>({
 		// eslint-disable-next-line react-hooks/rules-of-hooks
 		const controls = useMemo((): SequenceControls => {
 			return {
-				schema,
+				schema: schemaWithSequenceName,
 				currentRuntimeValueDotNotation,
 				overrideId,
 				supportsEffects,
+				componentIdentity,
 			};
 		}, [currentRuntimeValueDotNotation, overrideId]);
 
@@ -198,7 +208,7 @@ export const wrapInSchema = <S extends SequenceSchema, Props extends object>({
 		// eslint-disable-next-line react-hooks/rules-of-hooks
 		const {merged: valuesDotNotation, propsToDelete} = useMemo(() => {
 			return computeEffectiveSchemaValuesDotNotation({
-				schema,
+				schema: schemaWithSequenceName,
 				currentValue: currentRuntimeValueDotNotation,
 				overrideValues: nodePath === null ? {} : getDragOverrides(nodePath),
 				propStatus:
@@ -216,7 +226,10 @@ export const wrapInSchema = <S extends SequenceSchema, Props extends object>({
 		]);
 
 		// 4. Eliminate values forbidden by the resolved discriminated union.
-		const activeKeys = selectActiveKeys(schema, valuesDotNotation);
+		const activeKeys = selectActiveKeys(
+			schemaWithSequenceName,
+			valuesDotNotation,
+		);
 
 		// 5. Apply the active values back onto the props.
 		const mergedProps = mergeValues({

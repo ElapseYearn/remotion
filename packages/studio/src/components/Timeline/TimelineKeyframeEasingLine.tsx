@@ -10,8 +10,10 @@ import {ModalsContext} from '../../state/modals';
 import {ContextMenuForTarget} from '../ContextMenu';
 import type {ComboboxValue} from '../NewComposition/ComboBox';
 import {
+	TIMELINE_MARQUEE_ITEM_ATTR,
 	useCurrentTimelineSelectionStateAsRef,
 	useTimelineEasingSelection,
+	useTimelineMarqueeSelectableItem,
 } from './TimelineSelection';
 import {TimelineWidthContext} from './TimelineWidthProvider';
 import {
@@ -20,6 +22,7 @@ import {
 	type TimelineEasingValue,
 	updateSelectedTimelineEasings,
 } from './update-selected-easing';
+import {useTimelineEasingKeyframeDrag} from './use-timeline-keyframe-drag';
 
 const hitTargetHeight = 12;
 const lineHeight = 2;
@@ -61,6 +64,7 @@ const TimelineKeyframeEasingLineUnmemoized: React.FC<{
 			toFrame,
 			segmentIndex,
 		});
+	useTimelineMarqueeSelectableItem(selectionItem, buttonRef);
 	const {previewServerState} = useContext(StudioServerConnectionCtx);
 	const sequencesRef = useContext(Internals.SequenceManagerRefContext);
 	const propStatusesRef = useContext(
@@ -248,21 +252,12 @@ const TimelineKeyframeEasingLineUnmemoized: React.FC<{
 		[selected],
 	);
 
-	const onPointerDown = useCallback(
-		(event: React.PointerEvent<HTMLButtonElement>) => {
-			if (!selectable || event.button !== 0) {
-				return;
-			}
-
-			event.preventDefault();
-			event.stopPropagation();
-			onSelect({
-				shiftKey: event.shiftKey,
-				toggleKey: event.metaKey || event.ctrlKey,
-			});
-		},
-		[onSelect, selectable],
-	);
+	const onPointerDown = useTimelineEasingKeyframeDrag({
+		onSelect,
+		selectable,
+		selected,
+		selectionItem,
+	});
 
 	if (style === null) {
 		return null;
@@ -272,6 +267,7 @@ const TimelineKeyframeEasingLineUnmemoized: React.FC<{
 		<>
 			<button
 				ref={buttonRef}
+				{...{[TIMELINE_MARQUEE_ITEM_ATTR]: true}}
 				type="button"
 				style={style}
 				title={`Easing from frame ${fromFrame} to ${toFrame}`}

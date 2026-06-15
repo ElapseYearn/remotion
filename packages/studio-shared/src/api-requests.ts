@@ -18,6 +18,7 @@ import type {
 	CanUpdateSequencePropsResponseTrue,
 	CanUpdateSequencePropStatus,
 	ExtrapolateType,
+	JsxComponentIdentity,
 	SequenceNodePath,
 	SequencePropsSubscriptionKey,
 	SequenceSchema,
@@ -271,6 +272,7 @@ export type SubscribeToSequencePropsRequest = {
 	line: number;
 	column: number;
 	nodePath: SequenceNodePath | null;
+	componentIdentity: JsxComponentIdentity | null;
 	keys: string[];
 	effects: string[][];
 	clientId: string;
@@ -378,6 +380,24 @@ export type ReorderEffectRequest = {
 };
 
 export type ReorderEffectResponse =
+	| {
+			success: true;
+	  }
+	| {
+			success: false;
+			reason: string;
+			stack: string;
+	  };
+
+export type DuplicateEffectRequestItem = {
+	fileName: string;
+	sequenceNodePath: SequencePropsSubscriptionKey;
+	effectIndex: number;
+};
+
+export type DuplicateEffectRequest = DuplicateEffectRequestItem[];
+
+export type DuplicateEffectResponse =
 	| {
 			success: true;
 	  }
@@ -625,6 +645,7 @@ export type InsertableCompositionElement =
 			type: 'solid';
 			width: number;
 			height: number;
+			position: InsertableCompositionElementPosition | null;
 	  }
 	| {
 			type: 'component';
@@ -632,17 +653,24 @@ export type InsertableCompositionElement =
 			importName: string;
 			importPath: string;
 			props: ComponentProp[];
+			position: InsertableCompositionElementPosition | null;
 	  }
 	| {
 			type: 'asset';
-			assetType: 'image' | 'video' | 'gif' | 'audio';
+			assetType: 'image' | 'video' | 'gif' | 'animated-image' | 'audio';
 			src: string;
 			srcType: 'static' | 'remote';
 			dimensions: {
 				width: number;
 				height: number;
 			} | null;
+			position: InsertableCompositionElementPosition | null;
 	  };
+
+export type InsertableCompositionElementPosition = {
+	x: number;
+	y: number;
+};
 
 export type InsertJsxElementRequest = {
 	compositionFile: string;
@@ -775,6 +803,10 @@ export type ApiRoutes = {
 	>;
 	'/api/add-effect': ReqAndRes<AddEffectRequest, AddEffectResponse>;
 	'/api/reorder-effect': ReqAndRes<ReorderEffectRequest, ReorderEffectResponse>;
+	'/api/duplicate-effect': ReqAndRes<
+		DuplicateEffectRequest,
+		DuplicateEffectResponse
+	>;
 	'/api/reorder-sequence': ReqAndRes<
 		ReorderSequenceRequest,
 		ReorderSequenceResponse

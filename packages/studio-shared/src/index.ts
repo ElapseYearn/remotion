@@ -35,11 +35,15 @@ export {
 	DeleteStaticFileResponse,
 	DownloadRemoteAssetRequest,
 	DownloadRemoteAssetResponse,
+	DuplicateEffectRequest,
+	DuplicateEffectRequestItem,
+	DuplicateEffectResponse,
 	DuplicateJsxNodeRequest,
 	DuplicateJsxNodeResponse,
 	InsertJsxElementRequest,
 	InsertJsxElementResponse,
 	InsertableCompositionElement,
+	InsertableCompositionElementPosition,
 	InstallPackageRequest,
 	InstallPackageResponse,
 	LogStudioErrorRequest,
@@ -250,6 +254,7 @@ export {
 } from './optimistic-delete-keyframe';
 export {
 	canMoveKeyframesWithoutCollisions,
+	moveKeyframesInPropStatus,
 	optimisticMoveEffectKeyframes,
 	optimisticMoveSequenceKeyframes,
 	type OptimisticKeyframeMove,

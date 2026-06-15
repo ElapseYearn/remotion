@@ -236,6 +236,7 @@ const LightLeakCanvas: React.FC<{
 const lightLeakSchema = {
 	durationInFrames: Internals.durationInFramesField,
 	from: Internals.fromField,
+	freeze: Internals.freezeField,
 	seed: {
 		type: 'number',
 		default: 0,
@@ -302,6 +303,7 @@ const LightLeakInner: React.FC<
 
 export const LightLeak = Internals.wrapInSchema({
 	Component: LightLeakInner,
+	componentIdentity: 'dev.remotion.lightLeaks.LightLeak',
 	schema: lightLeakSchema,
 	supportsEffects: false,
 });

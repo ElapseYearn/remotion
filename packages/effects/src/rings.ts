@@ -6,6 +6,7 @@ import {
 	validateUnitInterval,
 	type ParsedColorRgba,
 } from './color-utils.js';
+import {publicUvToShaderUv} from './uv-coordinate.js';
 import {
 	assertEffectParamsObject,
 	assertOptionalBoolean,
@@ -22,6 +23,17 @@ const DEFAULT_OFFSET = 0 as const;
 const DEFAULT_MASK_TO_SOURCE_ALPHA = false as const;
 
 export const ringsSchema = {
+	colors: {
+		type: 'array',
+		item: {
+			type: 'color',
+		},
+		default: DEFAULT_COLORS,
+		minLength: 2,
+		newItemDefault: '#ff0000',
+		description: 'Colors',
+		keyframable: false,
+	},
 	center: {
 		type: 'uv-coordinate',
 		min: 0,
@@ -490,8 +502,11 @@ export const rings = createEffect<RingsParams, RingsState>({
 		if (uniforms.uPalette) gl.uniform1i(uniforms.uPalette, 1);
 		if (uniforms.uResolution) gl.uniform2f(uniforms.uResolution, width, height);
 		if (uniforms.uNumColors) gl.uniform1f(uniforms.uNumColors, r.colors.length);
-		if (uniforms.uCenter)
-			gl.uniform2f(uniforms.uCenter, r.center[0], r.center[1]);
+		if (uniforms.uCenter) {
+			const shaderCenter = publicUvToShaderUv(r.center);
+			gl.uniform2f(uniforms.uCenter, shaderCenter[0], shaderCenter[1]);
+		}
+
 		if (uniforms.uThickness) gl.uniform1f(uniforms.uThickness, r.thickness);
 		if (uniforms.uSpacing) gl.uniform1f(uniforms.uSpacing, r.spacing);
 		if (uniforms.uOffset) gl.uniform1f(uniforms.uOffset, r.offset);

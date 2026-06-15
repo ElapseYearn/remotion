@@ -26,7 +26,7 @@ import {
 	getScrollPositionForCursorOnRightEdge,
 	scrollToTimelineXOffset,
 } from './timeline-scroll-logic';
-import {TIMELINE_TOP_DRAG} from './TimelineSelection';
+import {TIMELINE_SCRUBBER_ATTR} from './TimelineSelection';
 import {redrawTimelineSliderFast} from './TimelineSlider';
 import {TIMELINE_TIME_INDICATOR_HEIGHT} from './TimelineTimeIndicators';
 
@@ -70,7 +70,7 @@ export const TimelineDragHandler: React.FC = () => {
 		return {
 			...container,
 			width: 100 * zoom + '%',
-			...(TIMELINE_TOP_DRAG ? {height: TIMELINE_TIME_INDICATOR_HEIGHT} : {}),
+			height: TIMELINE_TIME_INDICATOR_HEIGHT,
 		};
 	}, [canvasContent, zoomMap]);
 
@@ -79,7 +79,11 @@ export const TimelineDragHandler: React.FC = () => {
 	}
 
 	return (
-		<div ref={sliderAreaRef} style={containerStyle}>
+		<div
+			ref={sliderAreaRef}
+			style={containerStyle}
+			{...{[TIMELINE_SCRUBBER_ATTR]: true}}
+		>
 			{video ? <TimelineDragHandlerInnerMemo /> : null}
 		</div>
 	);

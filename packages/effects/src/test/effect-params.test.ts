@@ -4,6 +4,7 @@ import {blur} from '../blur/index.js';
 import {brightness} from '../brightness.js';
 import {chromaticAberration} from '../chromatic-aberration/index.js';
 import {colorKey} from '../color-key.js';
+import {contourLines} from '../contour-lines.js';
 import {contrast} from '../contrast.js';
 import {dotGrid} from '../dot-grid.js';
 import {dropShadow} from '../drop-shadow/index.js';
@@ -24,6 +25,7 @@ import {
 	type NoiseDisplacementParams,
 } from '../noise-displacement.js';
 import {noise} from '../noise.js';
+import {pattern} from '../pattern.js';
 import {pixelDissolve} from '../pixel-dissolve.js';
 import {rings} from '../rings.js';
 import {saturation} from '../saturation.js';
@@ -33,11 +35,34 @@ import {shine} from '../shine.js';
 import {speckle} from '../speckle.js';
 import {tint} from '../tint.js';
 import {uvTranslate, xyTranslate} from '../translate.js';
+import {tvSignalOff} from '../tv-signal-off.js';
+import {publicUvToShaderUv} from '../uv-coordinate.js';
 import {vignette} from '../vignette.js';
 import {wave} from '../wave/index.js';
 import {waves} from '../waves.js';
 import {whiteNoise} from '../white-noise.js';
 import {zigzag} from '../zigzag.js';
+
+const expectDefaultBlueColorArrayControl = (schema: {
+	readonly colors?: unknown;
+}): void => {
+	expect(schema.colors).toEqual({
+		type: 'array',
+		item: {
+			type: 'color',
+		},
+		default: ['#dff4ff', '#7cc6ff'],
+		minLength: 2,
+		newItemDefault: '#ff0000',
+		description: 'Colors',
+		keyframable: false,
+	});
+};
+
+test('public UV coordinates convert to shader UV coordinates', () => {
+	expect(publicUvToShaderUv([0, 0])).toEqual([0, 1]);
+	expect(publicUvToShaderUv([0.25, 0.75])).toEqual([0.25, 0.25]);
+});
 
 test('@remotion/effects expose documentation links', () => {
 	expect(barrelDistortion().definition.documentationLink).toBe(
@@ -57,6 +82,9 @@ test('@remotion/effects expose documentation links', () => {
 	);
 	expect(contrast().definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/contrast',
+	);
+	expect(contourLines().definition.documentationLink).toBe(
+		'https://www.remotion.dev/docs/effects/contour-lines',
 	);
 	expect(duotone().definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/duotone',
@@ -110,6 +138,9 @@ test('@remotion/effects expose documentation links', () => {
 		noiseDisplacement({center: [0.5, 0.5], radius: 0.25}).definition
 			.documentationLink,
 	).toBe('https://www.remotion.dev/docs/effects/noise-displacement');
+	expect(pattern().definition.documentationLink).toBe(
+		'https://www.remotion.dev/docs/effects/pattern',
+	);
 	expect(rings().definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/rings',
 	);
@@ -130,6 +161,9 @@ test('@remotion/effects expose documentation links', () => {
 	);
 	expect(tint({color: '#fff'}).definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/tint',
+	);
+	expect(tvSignalOff().definition.documentationLink).toBe(
+		'https://www.remotion.dev/docs/effects/tv-signal-off',
 	);
 	expect(uvTranslate().definition.documentationLink).toBe(
 		'https://www.remotion.dev/docs/effects/uv-translate',
@@ -161,6 +195,7 @@ test('@remotion/effects expose API names as Studio labels', () => {
 	expect(colorKey().definition.label).toBe('colorKey()');
 	expect(brightness().definition.label).toBe('brightness()');
 	expect(contrast().definition.label).toBe('contrast()');
+	expect(contourLines().definition.label).toBe('contourLines()');
 	expect(duotone().definition.label).toBe('duotone()');
 	expect(evolve().definition.label).toBe('evolve()');
 	expect(dropShadow().definition.label).toBe('dropShadow()');
@@ -184,6 +219,7 @@ test('@remotion/effects expose API names as Studio labels', () => {
 	expect(
 		noiseDisplacement({center: [0.5, 0.5], radius: 0.25}).definition.label,
 	).toBe('noiseDisplacement()');
+	expect(pattern().definition.label).toBe('pattern()');
 	expect(rings().definition.label).toBe('rings()');
 	expect(saturation().definition.label).toBe('saturation()');
 	expect(scanlines().definition.label).toBe('scanlines()');
@@ -191,6 +227,7 @@ test('@remotion/effects expose API names as Studio labels', () => {
 	expect(shine().definition.label).toBe('shine()');
 	expect(speckle().definition.label).toBe('speckle()');
 	expect(tint({color: '#fff'}).definition.label).toBe('tint()');
+	expect(tvSignalOff().definition.label).toBe('tvSignalOff()');
 	expect(uvTranslate().definition.label).toBe('uvTranslate()');
 	expect(vignette().definition.label).toBe('vignette()');
 	expect(xyTranslate().definition.label).toBe('xyTranslate()');
@@ -198,6 +235,13 @@ test('@remotion/effects expose API names as Studio labels', () => {
 	expect(waves().definition.label).toBe('waves()');
 	expect(zigzag().definition.label).toBe('zigzag()');
 	expect(whiteNoise().definition.label).toBe('whiteNoise()');
+});
+
+test('@remotion/effects palette effects expose colors as array controls', () => {
+	expectDefaultBlueColorArrayControl(lines().definition.schema);
+	expectDefaultBlueColorArrayControl(rings().definition.schema);
+	expectDefaultBlueColorArrayControl(waves().definition.schema);
+	expectDefaultBlueColorArrayControl(zigzag().definition.schema);
 });
 
 test('barrelDistortion() accepts default params', () => {
@@ -657,6 +701,31 @@ test('whiteNoise() parameters produce distinct effect keys', () => {
 		new Set([defaultStatic.effectKey, subtle.effectKey, reseeded.effectKey])
 			.size,
 	).toBe(3);
+});
+
+test('tvSignalOff() accepts default params', () => {
+	expect(() => tvSignalOff()).not.toThrow();
+});
+
+test('tvSignalOff() rejects non-finite amount', () => {
+	expect(() => tvSignalOff({amount: Number.NaN})).toThrow(
+		'"amount" must be a finite number',
+	);
+});
+
+test('tvSignalOff() rejects amount below range', () => {
+	expect(() => tvSignalOff({amount: -0.1})).toThrow('"amount" must be >= 0');
+});
+
+test('tvSignalOff() rejects amount above range', () => {
+	expect(() => tvSignalOff({amount: 1.1})).toThrow('"amount" must be <= 1');
+});
+
+test('tvSignalOff() parameters produce distinct effect keys', () => {
+	const defaults = tvSignalOff();
+	const subtle = tvSignalOff({amount: 0.2});
+
+	expect(new Set([defaults.effectKey, subtle.effectKey]).size).toBe(2);
 });
 
 test('grayscale() accepts default params', () => {
@@ -1299,6 +1368,110 @@ test('dotGrid() parameters produce distinct effect keys', () => {
 	).toBe(4);
 });
 
+test('contourLines() accepts default params', () => {
+	expect(() => contourLines()).not.toThrow();
+});
+
+test('contourLines() rejects empty lineColor strings', () => {
+	expect(() => contourLines({lineColor: ''})).toThrow(
+		'"lineColor" must be a non-empty string, but got ""',
+	);
+});
+
+test('contourLines() rejects non-finite lineWidth', () => {
+	expect(() => contourLines({lineWidth: Number.NaN})).toThrow(
+		'"lineWidth" must be a finite number',
+	);
+});
+
+test('contourLines() rejects non-positive lineWidth', () => {
+	expect(() => contourLines({lineWidth: 0})).toThrow(
+		'"lineWidth" must be greater than 0',
+	);
+});
+
+test('contourLines() rejects non-positive spacing', () => {
+	expect(() => contourLines({spacing: 0})).toThrow(
+		'"spacing" must be greater than 0',
+	);
+});
+
+test('contourLines() rejects non-positive scale', () => {
+	expect(() => contourLines({scale: 0})).toThrow(
+		'"scale" must be greater than 0',
+	);
+});
+
+test('contourLines() rejects complexity outside unit range', () => {
+	expect(() => contourLines({complexity: -0.1})).toThrow(
+		'"complexity" must be >= 0',
+	);
+	expect(() => contourLines({complexity: 1.1})).toThrow(
+		'"complexity" must be <= 1',
+	);
+});
+
+test('contourLines() rejects smoothness outside unit range', () => {
+	expect(() => contourLines({smoothness: -0.1})).toThrow(
+		'"smoothness" must be >= 0',
+	);
+	expect(() => contourLines({smoothness: 1.1})).toThrow(
+		'"smoothness" must be <= 1',
+	);
+});
+
+test('contourLines() rejects non-finite offsets', () => {
+	expect(() => contourLines({offsetX: Number.NaN})).toThrow(
+		'"offsetX" must be a finite number',
+	);
+	expect(() => contourLines({offsetY: Number.NaN})).toThrow(
+		'"offsetY" must be a finite number',
+	);
+});
+
+test('contourLines() rejects opacity outside unit range', () => {
+	expect(() => contourLines({opacity: -0.1})).toThrow('"opacity" must be >= 0');
+	expect(() => contourLines({opacity: 1.1})).toThrow('"opacity" must be <= 1');
+});
+
+test('contourLines() rejects non-boolean maskToSourceAlpha', () => {
+	expect(() =>
+		contourLines({maskToSourceAlpha: 'yes' as unknown as boolean}),
+	).toThrow('"maskToSourceAlpha" must be a boolean');
+});
+
+test('contourLines() parameters produce distinct effect keys', () => {
+	const defaults = contourLines();
+	const colored = contourLines({lineColor: '#0b84f3'});
+	const thicker = contourLines({lineWidth: 3});
+	const denser = contourLines({spacing: 12});
+	const larger = contourLines({scale: 240});
+	const simpler = contourLines({complexity: 0.2});
+	const smoother = contourLines({smoothness: 0.9});
+	const seeded = contourLines({seed: 3});
+	const shiftedX = contourLines({offsetX: 12});
+	const shiftedY = contourLines({offsetY: 12});
+	const transparent = contourLines({opacity: 0.5});
+	const masked = contourLines({maskToSourceAlpha: true});
+
+	expect(
+		new Set([
+			defaults.effectKey,
+			colored.effectKey,
+			thicker.effectKey,
+			denser.effectKey,
+			larger.effectKey,
+			simpler.effectKey,
+			smoother.effectKey,
+			seeded.effectKey,
+			shiftedX.effectKey,
+			shiftedY.effectKey,
+			transparent.effectKey,
+			masked.effectKey,
+		]).size,
+	).toBe(12);
+});
+
 test('invert() accepts default params', () => {
 	expect(() => invert()).not.toThrow();
 });
@@ -1545,6 +1718,102 @@ test('noiseDisplacement() parameters produce distinct effect keys', () => {
 			blurred.effectKey,
 			feathered.effectKey,
 			biased.effectKey,
+		]).size,
+	).toBe(10);
+});
+
+test('pattern() accepts default params', () => {
+	expect(() => pattern()).not.toThrow();
+});
+
+test('pattern() accepts all params', () => {
+	expect(() =>
+		pattern({
+			scale: 0.2,
+			cropLeft: 40,
+			cropTop: 20,
+			cropRight: 40,
+			cropBottom: 20,
+			gapX: 12,
+			gapY: 8,
+			offsetU: 0.1,
+			offsetV: -0.2,
+			rowOffset: 80,
+			rowOffsetEvery: 0,
+			columnOffset: -20,
+			columnOffsetEvery: 0,
+			origin: [0.5, 0.25],
+			wrap: false,
+		}),
+	).not.toThrow();
+});
+
+test('pattern() rejects invalid scale', () => {
+	expect(() => pattern({scale: Number.NaN})).toThrow(
+		'"scale" must be a finite number',
+	);
+	expect(() => pattern({scale: 0})).toThrow('"scale" must be > 0');
+});
+
+test('pattern() rejects invalid origin', () => {
+	expect(() => pattern({origin: [0.5] as unknown as [number, number]})).toThrow(
+		'"origin" must be a [number, number] tuple',
+	);
+	expect(() => pattern({origin: [-0.1, 0.5]})).toThrow(
+		'"origin[0]" must be >= 0',
+	);
+	expect(() => pattern({origin: [0.5, 1.1]})).toThrow(
+		'"origin[1]" must be <= 1',
+	);
+});
+
+test('pattern() rejects invalid repeat intervals', () => {
+	expect(() => pattern({rowOffsetEvery: -1})).toThrow(
+		'"rowOffsetEvery" must be >= 0',
+	);
+	expect(() => pattern({columnOffsetEvery: 1.5})).toThrow(
+		'"columnOffsetEvery" must be an integer',
+	);
+});
+
+test('pattern() rejects invalid generic offsets', () => {
+	expect(() => pattern({offsetU: Number.NaN})).toThrow(
+		'"offsetU" must be a finite number',
+	);
+	expect(() => pattern({offsetV: Number.NaN})).toThrow(
+		'"offsetV" must be a finite number',
+	);
+});
+
+test('pattern() allows negative gaps', () => {
+	expect(() => pattern({gapX: -1})).not.toThrow();
+	expect(() => pattern({gapY: -1})).not.toThrow();
+});
+
+test('pattern() parameters produce distinct effect keys', () => {
+	const defaults = pattern();
+	const scaled = pattern({scale: 0.2});
+	const cropped = pattern({cropLeft: 10});
+	const spaced = pattern({gapX: 12, gapY: 8});
+	const shifted = pattern({offsetU: 0.1, offsetV: -0.2});
+	const staggered = pattern({rowOffset: 80, rowOffsetEvery: 0});
+	const repeatingStagger = pattern({rowOffset: 80, rowOffsetEvery: 2});
+	const columnStaggered = pattern({columnOffset: 40, columnOffsetEvery: 0});
+	const shiftedOrigin = pattern({origin: [0.5, 0.25]});
+	const clipped = pattern({wrap: false});
+
+	expect(
+		new Set([
+			defaults.effectKey,
+			scaled.effectKey,
+			cropped.effectKey,
+			spaced.effectKey,
+			shifted.effectKey,
+			staggered.effectKey,
+			repeatingStagger.effectKey,
+			columnStaggered.effectKey,
+			shiftedOrigin.effectKey,
+			clipped.effectKey,
 		]).size,
 	).toBe(10);
 });

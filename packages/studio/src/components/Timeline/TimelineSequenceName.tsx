@@ -1,13 +1,13 @@
-import React, {useCallback, useMemo, useState} from 'react';
-import type {TSequence} from 'remotion';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
 	getTimelineColor,
 	getTimelineSelectedLabelStyle,
-	SELECTION_ENABLED,
 	TIMELINE_SELECTED_LABEL_BACKGROUND,
 } from './TimelineSelection';
 
 const MAX_DISPLAY_NAME_LENGTH = 1000;
+const MAX_RENAME_INPUT_WIDTH = 240;
+const RENAME_INPUT_CLASS_NAME = 'remotion-timeline-sequence-name-input';
 
 const getTruncatedDisplayName = (displayName: string): string => {
 	if (displayName.length > MAX_DISPLAY_NAME_LENGTH) {
@@ -18,27 +18,24 @@ const getTruncatedDisplayName = (displayName: string): string => {
 };
 
 export const TimelineSequenceName: React.FC<{
-	readonly sequence: TSequence;
+	readonly displayName: string;
 	readonly selected: boolean;
 	readonly containsSelection: boolean;
-}> = ({sequence, selected, containsSelection}) => {
-	const [hovered, setHovered] = useState(false);
-	const {documentationLink} = sequence;
-	const hoverable = !SELECTION_ENABLED && documentationLink !== null;
-
-	const onClick = useCallback(() => {
-		if (documentationLink === null) {
-			return;
-		}
-
-		window.open(documentationLink, '_blank', 'noopener,noreferrer');
-	}, [documentationLink]);
-
-	const onPointerEnter = useCallback(() => setHovered(true), []);
-	const onPointerLeave = useCallback(() => setHovered(false), []);
-
+	readonly editing: boolean;
+	readonly onCancelEditing: () => void;
+	readonly onSaveName: (name: string) => Promise<void>;
+}> = ({
+	displayName,
+	selected,
+	containsSelection,
+	editing,
+	onCancelEditing,
+	onSaveName,
+}) => {
+	const inputRef = useRef<HTMLInputElement>(null);
+	const [draftName, setDraftName] = useState(displayName);
+	const cancelNextBlurRef = useRef(false);
 	const style = useMemo((): React.CSSProperties => {
-		const hoverEffect = hovered && hoverable;
 		return {
 			alignItems: 'center',
 			alignSelf: 'stretch',
@@ -47,31 +44,108 @@ export const TimelineSequenceName: React.FC<{
 			fontSize: 12,
 			whiteSpace: 'nowrap',
 			textOverflow: 'ellipsis',
-			overflow: 'hidden',
 			color: getTimelineColor(selected, false),
 			userSelect: 'none',
 			WebkitUserSelect: 'none',
-			textDecoration: hoverEffect ? 'underline' : 'none',
-			cursor: hoverEffect ? 'pointer' : undefined,
+			textDecoration: 'none',
 			boxShadow:
 				containsSelection && !selected
 					? `inset 0 0 0 2px ${TIMELINE_SELECTED_LABEL_BACKGROUND}`
 					: undefined,
 		};
-	}, [hovered, hoverable, selected, containsSelection]);
+	}, [selected, containsSelection]);
 
-	const text = getTruncatedDisplayName(sequence.displayName) || '<Sequence>';
+	const inputStyle = useMemo((): React.CSSProperties => {
+		return {
+			...style,
+			background: 'transparent',
+			border: 0,
+			color: getTimelineColor(false, false),
+			fontFamily: 'inherit',
+			fontSize: 12,
+			outline: 'none',
+			paddingBottom: 0,
+			paddingTop: 0,
+			boxSizing: 'border-box',
+			maxWidth: MAX_RENAME_INPUT_WIDTH,
+			minWidth: 0,
+			userSelect: 'text',
+			WebkitUserSelect: 'text',
+		};
+	}, [style]);
+
+	const text = getTruncatedDisplayName(displayName) || '<Sequence>';
+
+	useEffect(() => {
+		if (!editing) {
+			setDraftName(displayName);
+			return;
+		}
+
+		const input = inputRef.current;
+		if (!input) {
+			return;
+		}
+
+		input.focus();
+		const basenameIndex = displayName.lastIndexOf('.');
+		const selectionEnd = basenameIndex > 0 ? basenameIndex : displayName.length;
+		input.setSelectionRange(0, selectionEnd);
+	}, [displayName, editing]);
+
+	const save = useCallback(() => {
+		onSaveName(draftName).catch(() => undefined);
+	}, [draftName, onSaveName]);
+
+	const onKeyDown = useCallback(
+		(e: React.KeyboardEvent<HTMLInputElement>) => {
+			if (e.key === 'Escape') {
+				cancelNextBlurRef.current = true;
+				e.preventDefault();
+				onCancelEditing();
+				return;
+			}
+
+			if (e.key === 'Enter') {
+				cancelNextBlurRef.current = true;
+				e.preventDefault();
+				save();
+			}
+		},
+		[onCancelEditing, save],
+	);
+
+	const onBlur = useCallback(() => {
+		if (cancelNextBlurRef.current) {
+			cancelNextBlurRef.current = false;
+			return;
+		}
+
+		save();
+	}, [save]);
+
+	if (editing) {
+		return (
+			<>
+				<style>
+					{`.${RENAME_INPUT_CLASS_NAME}::selection { background: rgba(255, 255, 255, 0.72); color: black; }`}
+				</style>
+				<input
+					ref={inputRef}
+					className={RENAME_INPUT_CLASS_NAME}
+					value={draftName}
+					onChange={(e) => setDraftName(e.target.value)}
+					onBlur={onBlur}
+					onKeyDown={onKeyDown}
+					size={Math.max(1, draftName.length)}
+					style={inputStyle}
+				/>
+			</>
+		);
+	}
 
 	return (
-		<div
-			onPointerEnter={hoverable ? onPointerEnter : undefined}
-			onPointerLeave={hoverable ? onPointerLeave : undefined}
-			title={
-				documentationLink ? `Open documentation: ${documentationLink}` : text
-			}
-			style={style}
-			onClick={hoverable ? onClick : undefined}
-		>
+		<div title={text} style={style}>
 			{text}
 		</div>
 	);

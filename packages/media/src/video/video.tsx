@@ -16,6 +16,9 @@ const {validateMediaTrimProps, resolveTrimProps, validateMediaProps} =
 	Internals;
 
 const videoSchema = {
+	durationInFrames: Internals.durationInFramesField,
+	from: Internals.fromField,
+	freeze: Internals.freezeField,
 	volume: {
 		type: 'number',
 		min: 0,
@@ -30,7 +33,7 @@ const videoSchema = {
 		min: 0.1,
 		step: 0.01,
 		default: 1,
-		description: 'Playback Rate',
+		description: 'Playback rate',
 		hiddenFromList: false,
 		keyframable: false,
 	},
@@ -220,6 +223,7 @@ const VideoInner: React.FC<
 	effects,
 	durationInFrames,
 	from,
+	freeze,
 	hidden,
 	...props
 }) => {
@@ -299,6 +303,7 @@ const VideoInner: React.FC<
 			layout="none"
 			from={from ?? 0}
 			durationInFrames={basicInfo.duration}
+			freeze={freeze}
 			_remotionInternalStack={stack}
 			_remotionInternalIsMedia={isMedia}
 			name={name ?? '<Video>'}
@@ -360,6 +365,7 @@ const VideoInner: React.FC<
 
 export const Video = Internals.wrapInSchema({
 	Component: VideoInner,
+	componentIdentity: 'dev.remotion.media.Video',
 	schema: videoSchema,
 	supportsEffects: true,
 });

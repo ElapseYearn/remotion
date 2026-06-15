@@ -12,29 +12,10 @@ import {
 	getTimelineDisplayDecimalPlaces,
 	normalizeTimelineNumber,
 } from './timeline-field-utils';
-
-const unitPattern = /^([+-]?(?:\d+\.?\d*|\.\d+))(deg|rad|turn|grad)$/;
-
-const unitToDegrees: Record<string, number> = {
-	deg: 1,
-	rad: 180 / Math.PI,
-	turn: 360,
-	grad: 360 / 400,
-};
-
-const parseCssRotationToDegrees = (value: string): number => {
-	const match = value.trim().match(unitPattern);
-	if (match) {
-		return normalizeTimelineNumber(Number(match[1]) * unitToDegrees[match[2]]);
-	}
-
-	try {
-		const m = new DOMMatrix(`rotate(${value})`);
-		return normalizeTimelineNumber(Math.atan2(m.b, m.a) * (180 / Math.PI));
-	} catch {
-		return 0;
-	}
-};
+import {
+	parseCssRotationToDegrees,
+	serializeCssRotation,
+} from './timeline-rotation-utils';
 
 export const TimelineRotationField: React.FC<{
 	readonly field: SchemaFieldInfo;
@@ -62,12 +43,37 @@ export const TimelineRotationField: React.FC<{
 		return typeof effectiveValue === 'number' ? effectiveValue : 0;
 	}, [effectiveValue, isCssRotation]);
 
+	const configuredStep =
+		field.fieldSchema.type === 'rotation-css' ||
+		field.fieldSchema.type === 'rotation-degrees'
+			? field.fieldSchema.step
+			: undefined;
+	const step = configuredStep ?? 1;
+	const min =
+		field.fieldSchema.type === 'rotation-degrees'
+			? (field.fieldSchema.min ?? -Infinity)
+			: -Infinity;
+	const max =
+		field.fieldSchema.type === 'rotation-degrees'
+			? (field.fieldSchema.max ?? Infinity)
+			: Infinity;
+
+	const decimalPlaces = useMemo(
+		() =>
+			getTimelineDisplayDecimalPlaces({
+				defaultDecimalPlaces: 1,
+				step: configuredStep,
+			}),
+		[configuredStep],
+	);
+
 	const serializeValue = useCallback(
 		(value: number) => {
-			const normalized = normalizeTimelineNumber(value);
-			return isCssRotation ? `${normalized}deg` : normalized;
+			return isCssRotation
+				? serializeCssRotation(value, decimalPlaces)
+				: normalizeTimelineNumber(value);
 		},
-		[isCssRotation],
+		[decimalPlaces, isCssRotation],
 	);
 
 	const onValueChange = useCallback(
@@ -108,30 +114,6 @@ export const TimelineRotationField: React.FC<{
 			}
 		},
 		[propStatus, onSave, serializeValue],
-	);
-
-	const configuredStep =
-		field.fieldSchema.type === 'rotation-css' ||
-		field.fieldSchema.type === 'rotation-degrees'
-			? field.fieldSchema.step
-			: undefined;
-	const step = configuredStep ?? 1;
-	const min =
-		field.fieldSchema.type === 'rotation-degrees'
-			? (field.fieldSchema.min ?? -Infinity)
-			: -Infinity;
-	const max =
-		field.fieldSchema.type === 'rotation-degrees'
-			? (field.fieldSchema.max ?? Infinity)
-			: Infinity;
-
-	const decimalPlaces = useMemo(
-		() =>
-			getTimelineDisplayDecimalPlaces({
-				defaultDecimalPlaces: 1,
-				step: configuredStep,
-			}),
-		[configuredStep],
 	);
 
 	const formatter = useCallback(

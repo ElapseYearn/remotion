@@ -7,6 +7,7 @@ import {EffectsBlurPreview} from '../../components/effects/effects-blur-preview'
 import {EffectsBrightnessPreview} from '../../components/effects/effects-brightness-preview';
 import {EffectsChromaticAberrationPreview} from '../../components/effects/effects-chromatic-aberration-preview';
 import {EffectsColorKeyPreview} from '../../components/effects/effects-color-key-preview';
+import {EffectsContourLinesPreview} from '../../components/effects/effects-contour-lines-preview';
 import {EffectsContrastPreview} from '../../components/effects/effects-contrast-preview';
 import {EffectsDotGridPreview} from '../../components/effects/effects-dot-grid-preview';
 import {EffectsDropShadowPreview} from '../../components/effects/effects-drop-shadow-preview';
@@ -29,6 +30,7 @@ import {
 	NoiseDisplacementTextSource,
 } from '../../components/effects/effects-noise-displacement-preview';
 import {EffectsNoisePreview} from '../../components/effects/effects-noise-preview';
+import {EffectsPatternPreview} from '../../components/effects/effects-pattern-preview';
 import {EffectsPixelDissolvePreview} from '../../components/effects/effects-pixel-dissolve-preview';
 import {EffectsRingsPreview} from '../../components/effects/effects-rings-preview';
 import {EffectsSaturationPreview} from '../../components/effects/effects-saturation-preview';
@@ -42,6 +44,7 @@ import {
 	EffectsUvTranslatePreview,
 	EffectsXyTranslatePreview,
 } from '../../components/effects/effects-translate-preview';
+import {EffectsTvSignalOffPreview} from '../../components/effects/effects-tv-signal-off-preview';
 import {EffectsVignettePreview} from '../../components/effects/effects-vignette-preview';
 import {EffectsWavePreview} from '../../components/effects/effects-wave-preview';
 import {EffectsWavesPreview} from '../../components/effects/effects-waves-preview';
@@ -52,6 +55,8 @@ import {AllTemplates} from './AllTemplates';
 import {Article} from './Article';
 import {Expert} from './Expert';
 import {TemplateComp} from './Template';
+
+const DEFAULT_EFFECT_COLORS = ['#dff4ff', '#7cc6ff'] as const;
 
 export const RemotionRoot: React.FC = () => {
 	return (
@@ -342,6 +347,29 @@ export const RemotionRoot: React.FC = () => {
 					}}
 				/>
 				<Still
+					id="effects-pattern-preview"
+					component={EffectsPatternPreview}
+					width={1280}
+					height={720}
+					defaultProps={{
+						scale: 0.16,
+						cropLeft: 0,
+						cropTop: 0,
+						cropRight: 0,
+						cropBottom: 0,
+						gapX: 16,
+						gapY: 16,
+						offsetU: 0,
+						offsetV: 0,
+						rowOffset: 88,
+						rowOffsetEvery: 0,
+						columnOffset: 0,
+						columnOffsetEvery: 0,
+						origin: [0, 0],
+						wrap: true,
+					}}
+				/>
+				<Still
 					id="effects-halftone-linear-gradient-preview"
 					component={EffectsHalftoneLinearGradientPreview}
 					width={1280}
@@ -402,6 +430,15 @@ export const RemotionRoot: React.FC = () => {
 					}}
 				/>
 				<Still
+					id="effects-tv-signal-off-preview"
+					component={EffectsTvSignalOffPreview}
+					width={1280}
+					height={720}
+					defaultProps={{
+						amount: 1,
+					}}
+				/>
+				<Still
 					id="effects-scanlines-preview"
 					component={EffectsScanlinesPreview}
 					width={1280}
@@ -420,6 +457,7 @@ export const RemotionRoot: React.FC = () => {
 					width={1280}
 					height={720}
 					defaultProps={{
+						colors: DEFAULT_EFFECT_COLORS,
 						direction: 'horizontal',
 						thickness: 40,
 						gap: 0,
@@ -428,11 +466,31 @@ export const RemotionRoot: React.FC = () => {
 					}}
 				/>
 				<Still
+					id="effects-contour-lines-preview"
+					component={EffectsContourLinesPreview}
+					width={1280}
+					height={720}
+					defaultProps={{
+						lineColor: '#ffffff',
+						lineWidth: 1.1,
+						spacing: 36,
+						scale: 220,
+						complexity: 0.7,
+						smoothness: 0.75,
+						seed: 2,
+						offsetX: 0,
+						offsetY: 0,
+						opacity: 0.65,
+						maskToSourceAlpha: false,
+					}}
+				/>
+				<Still
 					id="effects-rings-preview"
 					component={EffectsRingsPreview}
 					width={1280}
 					height={720}
 					defaultProps={{
+						colors: DEFAULT_EFFECT_COLORS,
 						center: [0.5, 0.5],
 						thickness: 40,
 						gap: 0,
@@ -445,6 +503,7 @@ export const RemotionRoot: React.FC = () => {
 					width={1280}
 					height={720}
 					defaultProps={{
+						colors: DEFAULT_EFFECT_COLORS,
 						direction: 'horizontal',
 						thickness: 40,
 						gap: 0,
@@ -461,6 +520,7 @@ export const RemotionRoot: React.FC = () => {
 					width={1280}
 					height={720}
 					defaultProps={{
+						colors: DEFAULT_EFFECT_COLORS,
 						direction: 'horizontal',
 						thickness: 40,
 						gap: 0,

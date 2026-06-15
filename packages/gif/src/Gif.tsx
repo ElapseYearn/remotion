@@ -19,6 +19,7 @@ const {
 	useMemoizedEffects,
 	wrapInSchema,
 	durationInFramesField,
+	freezeField,
 	fromField,
 } = Internals;
 
@@ -38,13 +39,14 @@ export type GifProps = Omit<
 const gifSchema = {
 	durationInFrames: durationInFramesField,
 	from: fromField,
+	freeze: freezeField,
 	playbackRate: {
 		type: 'number',
 		min: 0,
 		max: 10,
 		step: 0.1,
 		default: 1,
-		description: 'Playback Rate',
+		description: 'Playback rate',
 		hiddenFromList: false,
 		keyframable: false,
 	},
@@ -127,6 +129,7 @@ const GifInner = ({
 
 export const Gif = wrapInSchema({
 	Component: GifInner,
+	componentIdentity: 'dev.remotion.gif.Gif',
 	schema: gifSchema,
 	supportsEffects: true,
 });

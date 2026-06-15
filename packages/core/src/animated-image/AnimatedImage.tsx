@@ -17,6 +17,7 @@ import {
 import {addSequenceStackTraces} from '../enable-sequence-stack-traces.js';
 import {
 	durationInFramesField,
+	freezeField,
 	fromField,
 	hiddenField,
 	sequenceVisualStyleSchema,
@@ -38,13 +39,14 @@ import {resolveAnimatedImageSource} from './resolve-image-source';
 const animatedImageSchema = {
 	durationInFrames: durationInFramesField,
 	from: fromField,
+	freeze: freezeField,
 	playbackRate: {
 		type: 'number',
 		min: 0,
 		max: 10,
 		step: 0.1,
 		default: 1,
-		description: 'Playback Rate',
+		description: 'Playback rate',
 		hiddenFromList: false,
 		keyframable: false,
 	},
@@ -296,6 +298,7 @@ const AnimatedImageInner = ({
 
 export const AnimatedImage = wrapInSchema({
 	Component: AnimatedImageInner,
+	componentIdentity: 'dev.remotion.remotion.AnimatedImage',
 	schema: animatedImageSchema,
 	supportsEffects: true,
 });

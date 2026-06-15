@@ -4,6 +4,7 @@ import React, {useCallback, useMemo, useState} from 'react';
 import {AnimatedImage} from '../animated-image/index.js';
 import type {TSequence} from '../CompositionManager.js';
 import {Img} from '../Img.js';
+import {Interactive} from '../Interactive.js';
 import {Internals} from '../internals.js';
 import {Sequence} from '../Sequence.js';
 import type {SequenceManagerContext} from '../SequenceManager.js';
@@ -139,6 +140,24 @@ test('Sequence registers its documentation link', () => {
 	);
 });
 
+test('Sequence registers its wrapper element for Studio outlines', () => {
+	const registeredSequences: TSequence[] = [];
+	const ref = React.createRef<HTMLDivElement>();
+
+	render(
+		<SequenceTestWrapper
+			onRegisterSequence={(sequence) => {
+				registeredSequences.push(sequence);
+			}}
+		>
+			<Sequence ref={ref}>hi</Sequence>
+		</SequenceTestWrapper>,
+	);
+
+	expect(registeredSequences[0]?.refForOutline?.current?.tagName).toBe('DIV');
+	expect(registeredSequences[0]?.refForOutline?.current).toBe(ref.current);
+});
+
 test('Series.Sequence registers without visual controls', () => {
 	const registeredSequences: TSequence[] = [];
 
@@ -185,7 +204,7 @@ test('Img registers its documentation link for default labels', () => {
 	);
 });
 
-test('Named Img components do not receive the default documentation link', () => {
+test('Named Img components keep the default documentation link', () => {
 	const registeredSequences: TSequence[] = [];
 
 	render(
@@ -198,7 +217,9 @@ test('Named Img components do not receive the default documentation link', () =>
 		</SequenceTestWrapper>,
 	);
 
-	expect(registeredSequences[0]?.documentationLink).toBe(null);
+	expect(registeredSequences[0]?.documentationLink).toBe(
+		'https://www.remotion.dev/docs/img',
+	);
 });
 
 test('AnimatedImage registers its canvas ref for the Studio outline', () => {
@@ -236,6 +257,63 @@ test('Img registers a refForOutline pointing to the rendered image element', () 
 	);
 
 	expect(registeredSequences[0]?.refForOutline?.current?.tagName).toBe('IMG');
+});
+
+test('Interactive elements register their rendered element for Studio outlines', () => {
+	const registeredSequences: TSequence[] = [];
+	const divRef = React.createRef<HTMLDivElement>();
+	const documentationLink = 'https://www.remotion.dev/docs/interactive';
+
+	render(
+		<SequenceTestWrapper
+			onRegisterSequence={(sequence) => {
+				registeredSequences.push(sequence);
+			}}
+		>
+			<Interactive.Div ref={divRef}>Hello</Interactive.Div>
+			<Interactive.Span>World</Interactive.Span>
+			<Interactive.Svg viewBox="0 0 100 100">
+				<Interactive.Rect width={100} height={100} />
+			</Interactive.Svg>
+		</SequenceTestWrapper>,
+	);
+
+	expect(
+		registeredSequences.map((sequence) => sequence.displayName).sort(),
+	).toEqual([
+		'<Interactive.Div>',
+		'<Interactive.Rect>',
+		'<Interactive.Span>',
+		'<Interactive.Svg>',
+	]);
+
+	const getByName = (displayName: string) =>
+		registeredSequences.find(
+			(sequence) => sequence.displayName === displayName,
+		);
+
+	expect(getByName('<Interactive.Div>')?.refForOutline?.current?.tagName).toBe(
+		'DIV',
+	);
+	expect(getByName('<Interactive.Span>')?.refForOutline?.current?.tagName).toBe(
+		'SPAN',
+	);
+	expect(getByName('<Interactive.Svg>')?.refForOutline?.current?.tagName).toBe(
+		'svg',
+	);
+	expect(getByName('<Interactive.Rect>')?.refForOutline?.current?.tagName).toBe(
+		'rect',
+	);
+	expect(getByName('<Interactive.Div>')?.documentationLink).toBe(
+		documentationLink,
+	);
+	expect(getByName('<Interactive.Rect>')?.documentationLink).toBe(
+		documentationLink,
+	);
+	expect(getByName('<Interactive.Div>')?.refForOutline?.current).toBe(
+		divRef.current,
+	);
+	expect(getByName('<Interactive.Div>')?.controls).not.toBe(null);
 });
 
 test('Imperative sequence refs update without rerendering ref-only consumers', async () => {

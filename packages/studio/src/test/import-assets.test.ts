@@ -17,6 +17,7 @@ test('maps audio file types to Audio assets', () => {
 			src: `sound.${type}`,
 			srcType: 'static',
 			dimensions: null,
+			position: null,
 		});
 	}
 });
@@ -30,6 +31,25 @@ test('does not map M3U playlists to Audio assets', () => {
 	).toBe(null);
 });
 
+test('maps animated PNG file types to AnimatedImage assets', () => {
+	expect(
+		getAssetElement({
+			fileType: {
+				type: 'apng',
+				dimensions: {width: 320, height: 180},
+			},
+			src: 'animated-png.png',
+		}),
+	).toEqual({
+		type: 'asset',
+		assetType: 'animated-image',
+		src: 'animated-png.png',
+		srcType: 'static',
+		dimensions: {width: 320, height: 180},
+		position: null,
+	});
+});
+
 test('maps existing static file paths to insertable assets', () => {
 	expect(getAssetElementFromPath('nested/photo.JPG')).toEqual({
 		type: 'asset',
@@ -37,6 +57,7 @@ test('maps existing static file paths to insertable assets', () => {
 		src: 'nested/photo.JPG',
 		srcType: 'static',
 		dimensions: null,
+		position: null,
 	});
 	expect(getAssetElementFromPath('movie.webm')).toEqual({
 		type: 'asset',
@@ -44,6 +65,7 @@ test('maps existing static file paths to insertable assets', () => {
 		src: 'movie.webm',
 		srcType: 'static',
 		dimensions: null,
+		position: null,
 	});
 	expect(getAssetElementFromPath('audio.flac')).toEqual({
 		type: 'asset',
@@ -51,6 +73,15 @@ test('maps existing static file paths to insertable assets', () => {
 		src: 'audio.flac',
 		srcType: 'static',
 		dimensions: null,
+		position: null,
+	});
+	expect(getAssetElementFromPath('animation.apng')).toEqual({
+		type: 'asset',
+		assetType: 'animated-image',
+		src: 'animation.apng',
+		srcType: 'static',
+		dimensions: null,
+		position: null,
 	});
 	expect(getAssetElementFromPath('animation.gif')).toEqual({
 		type: 'asset',
@@ -58,6 +89,7 @@ test('maps existing static file paths to insertable assets', () => {
 		src: 'animation.gif',
 		srcType: 'static',
 		dimensions: null,
+		position: null,
 	});
 });
 

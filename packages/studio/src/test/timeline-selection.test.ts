@@ -15,23 +15,43 @@ import {
 	getUvCoordinateForPoint,
 	getUvHandleConnectionLines,
 	getUvHandlePosition,
+	roundUvCoordinate,
 } from '../components/selected-outline-uv';
 import {
 	applySelectedOutlineDragAxisLock,
+	applySelectedOutlineTransformOriginAxisLock,
+	compensateTranslateForTransformOrigin,
 	getOutlineSelectionInteraction,
 	getSelectedEffectFieldsBySequenceKey,
 	getSelectedOutlineDragChanges,
 	getSelectedOutlineDragValues,
+	getSelectedOutlineKeyboardNudgeDelta,
+	getSelectedOutlineKeyboardNudgeDeltas,
+	getSelectedOutlineRotationCornerInfo,
+	getSelectedOutlineRotationDeltaDegrees,
+	getSelectedOutlineRotationDragChanges,
+	getSelectedOutlineRotationDragValues,
+	getSelectedOutlineRotationPivot,
 	getSelectedOutlineScaleDragChanges,
 	getSelectedOutlineScaleDragValues,
 	getSelectedOutlineScaleEdgeInfo,
+	getSelectedOutlineTransformOriginLockedAxis,
 	getSelectedSequenceKeys,
 	getSequencesWithSelectableOutlines,
+	getTransformedSvgViewportPoints,
+	isSelectedOutlineDragPastThreshold,
+	snapSelectedOutlineTransformOriginUv,
+	selectedOutlineDragThresholdPx,
+	selectedOutlineTransformOriginSnapThresholdPx,
 	type SelectedOutlineDragState,
+	type SelectedOutlineRotationDragState,
 	type SelectedOutlineScaleDragState,
 } from '../components/SelectedOutlineOverlay';
 import {deleteSelectedTimelineItems} from '../components/Timeline/delete-selected-timeline-item';
-import {isDuplicatableSequenceRowSelection} from '../components/Timeline/duplicate-selected-timeline-item';
+import {
+	isDuplicatableEffectSelection,
+	isDuplicatableSequenceRowSelection,
+} from '../components/Timeline/duplicate-selected-timeline-item';
 import {getTimelinePropResetTargets} from '../components/Timeline/reset-selected-timeline-props';
 import {
 	getEffectPropClipboardDataFromSelection,
@@ -43,14 +63,18 @@ import {
 } from '../components/Timeline/TimelineClipboardKeybindings';
 import {getSelectedKeyframeControlNodePathInfos} from '../components/Timeline/TimelineKeyframeControls';
 import {
-	ENABLE_OUTLINES,
+	getClampedTimelineMarqueePoint,
 	getSelectableTimelineSequenceSelections,
+	getTimelineMarqueeSelection,
 	getTimelineSelectionAfterInteraction,
 	getTimelineSelectionFromNodePathInfo,
+	getTimelineSelectionKey,
 	getTimelineSequenceSelectionKey,
 	isTimelineSelectionModifierEvent,
-	SELECTION_ENABLED,
-	TIMELINE_TOP_DRAG,
+	shouldSelectTimelineRowOnPointerDown,
+	TIMELINE_BACKGROUND,
+	TIMELINE_TICKS_BACKGROUND,
+	timelineMarqueeRectsIntersect,
 } from '../components/Timeline/TimelineSelection';
 import {
 	getTimelineSequenceDurationDragChanges,
@@ -60,6 +84,15 @@ import {
 	getTimelineSequenceFromDragTargets,
 	getTimelineSequenceFromDragValue,
 } from '../components/Timeline/TimelineSequenceRightEdgeDragHandle';
+import {
+	parsedTransformOriginToUv,
+	parseTransformOrigin,
+	serializeTransformOrigin,
+} from '../components/Timeline/transform-origin-utils';
+import {
+	getKeyframesForTimelineEasingDrag,
+	getTimelineSelectionsAfterEasingKeyframeDrag,
+} from '../components/Timeline/use-timeline-keyframe-drag';
 import type {SequenceNodePathInfo} from '../helpers/get-timeline-sequence-sort-key';
 import {
 	loadEditorShowOutlinesOption,
@@ -132,6 +165,7 @@ const makeTimelineSequence = ({
 	duration = 100,
 	from = 0,
 	type = 'sequence',
+	showInTimeline = true,
 }: {
 	readonly schema: SequenceSchema;
 	readonly effects?: readonly {readonly schema: SequenceSchema}[];
@@ -142,6 +176,7 @@ const makeTimelineSequence = ({
 	readonly duration?: number;
 	readonly from?: number;
 	readonly type?: TSequence['type'];
+	readonly showInTimeline?: boolean;
 }): TSequence =>
 	({
 		type,
@@ -152,7 +187,7 @@ const makeTimelineSequence = ({
 		documentationLink: null,
 		parent: parentId,
 		rootId: 'root',
-		showInTimeline: true,
+		showInTimeline,
 		nonce: [[0, 0]],
 		loopDisplay: undefined,
 		getStack: () => null,
@@ -163,6 +198,7 @@ const makeTimelineSequence = ({
 			currentRuntimeValueDotNotation: {},
 			overrideId,
 			supportsEffects: true,
+			componentIdentity: null,
 		},
 		refForOutline,
 		isInsideSeries: false,
@@ -203,8 +239,178 @@ const makeFromPropStatuses = (
 	return propStatuses;
 };
 
-test('Timeline selection should stay disabled until released publicly', () => {
-	expect(SELECTION_ENABLED).toBe(false);
+test('timeline marquee rectangle intersection detects overlapping targets', () => {
+	expect(
+		timelineMarqueeRectsIntersect(
+			{left: 0, top: 0, right: 10, bottom: 10},
+			{left: 5, top: 5, right: 15, bottom: 15},
+		),
+	).toBe(true);
+	expect(
+		timelineMarqueeRectsIntersect(
+			{left: 0, top: 0, right: 10, bottom: 10},
+			{left: 11, top: 0, right: 20, bottom: 10},
+		),
+	).toBe(false);
+});
+
+test('timeline marquee points are clamped to the track bounds', () => {
+	expect(
+		getClampedTimelineMarqueePoint({
+			bounds: {left: 10, top: 20, right: 100, bottom: 200},
+			x: 5,
+			y: 250,
+		}),
+	).toEqual({x: 10, y: 200});
+	expect(
+		getClampedTimelineMarqueePoint({
+			bounds: {left: 10, top: 20, right: 100, bottom: 200},
+			x: 80,
+			y: 60,
+		}),
+	).toEqual({x: 80, y: 60});
+});
+
+test('timeline marquee locks to sequences after capturing a sequence first', () => {
+	const firstSequence = makeNodePathInfo(['body', 0], []);
+	const keyframe = makeNodePathInfo(['body', 1], ['controls', 'opacity']);
+	const secondSequence = makeNodePathInfo(['body', 2], []);
+
+	const result = getTimelineMarqueeSelection({
+		lockedSelectionKind: null,
+		marqueeRect: {left: 0, top: 0, right: 100, bottom: 100},
+		candidates: [
+			{
+				item: {type: 'sequence', nodePathInfo: firstSequence},
+				rect: {left: 0, top: 0, right: 10, bottom: 10},
+			},
+			{
+				item: {type: 'keyframe', nodePathInfo: keyframe, frame: 20},
+				rect: {left: 20, top: 0, right: 30, bottom: 10},
+			},
+			{
+				item: {type: 'sequence', nodePathInfo: secondSequence},
+				rect: {left: 40, top: 0, right: 50, bottom: 10},
+			},
+		],
+	});
+
+	expect(result.lockedSelectionKind).toBe('sequence');
+	expect(result.selectedItems).toEqual([
+		{type: 'sequence', nodePathInfo: firstSequence},
+		{type: 'sequence', nodePathInfo: secondSequence},
+	]);
+});
+
+test('timeline marquee locks to keyframes and easings after capturing a keyframe first', () => {
+	const keyframe = makeNodePathInfo(['body', 0], ['controls', 'opacity']);
+	const sequence = makeNodePathInfo(['body', 1], []);
+	const easing = makeNodePathInfo(['body', 2], ['controls', 'scale']);
+
+	const result = getTimelineMarqueeSelection({
+		lockedSelectionKind: null,
+		marqueeRect: {left: 0, top: 0, right: 100, bottom: 100},
+		candidates: [
+			{
+				item: {type: 'keyframe', nodePathInfo: keyframe, frame: 20},
+				rect: {left: 0, top: 0, right: 10, bottom: 10},
+			},
+			{
+				item: {type: 'sequence', nodePathInfo: sequence},
+				rect: {left: 20, top: 0, right: 30, bottom: 10},
+			},
+			{
+				item: {
+					type: 'easing',
+					nodePathInfo: easing,
+					fromFrame: 20,
+					toFrame: 30,
+					segmentIndex: 0,
+				},
+				rect: {left: 40, top: 0, right: 50, bottom: 10},
+			},
+		],
+	});
+
+	expect(result.lockedSelectionKind).toBe('keyframes-and-easings');
+	expect(result.selectedItems).toEqual([
+		{type: 'keyframe', nodePathInfo: keyframe, frame: 20},
+		{
+			type: 'easing',
+			nodePathInfo: easing,
+			fromFrame: 20,
+			toFrame: 30,
+			segmentIndex: 0,
+		},
+	]);
+});
+
+test('timeline marquee keeps its locked item kind while dragging', () => {
+	const keyframe = makeNodePathInfo(['body', 0], ['controls', 'opacity']);
+	const sequence = makeNodePathInfo(['body', 1], []);
+
+	const result = getTimelineMarqueeSelection({
+		lockedSelectionKind: 'keyframes-and-easings',
+		marqueeRect: {left: 0, top: 0, right: 100, bottom: 100},
+		candidates: [
+			{
+				item: {type: 'sequence', nodePathInfo: sequence},
+				rect: {left: 0, top: 0, right: 10, bottom: 10},
+			},
+			{
+				item: {type: 'keyframe', nodePathInfo: keyframe, frame: 20},
+				rect: {left: 20, top: 0, right: 30, bottom: 10},
+			},
+		],
+	});
+
+	expect(result.lockedSelectionKind).toBe('keyframes-and-easings');
+	expect(result.selectedItems).toEqual([
+		{type: 'keyframe', nodePathInfo: keyframe, frame: 20},
+	]);
+});
+
+test('timeline marquee can choose a new item kind after the locked kind selects nothing', () => {
+	const keyframe = makeNodePathInfo(['body', 0], ['controls', 'opacity']);
+	const sequence = makeNodePathInfo(['body', 1], []);
+
+	const result = getTimelineMarqueeSelection({
+		lockedSelectionKind: 'sequence',
+		marqueeRect: {left: 0, top: 0, right: 100, bottom: 100},
+		candidates: [
+			{
+				item: {type: 'keyframe', nodePathInfo: keyframe, frame: 20},
+				rect: {left: 20, top: 0, right: 30, bottom: 10},
+			},
+			{
+				item: {type: 'sequence', nodePathInfo: sequence},
+				rect: {left: 120, top: 0, right: 130, bottom: 10},
+			},
+		],
+	});
+
+	expect(result.lockedSelectionKind).toBe('keyframes-and-easings');
+	expect(result.selectedItems).toEqual([
+		{type: 'keyframe', nodePathInfo: keyframe, frame: 20},
+	]);
+});
+
+test('timeline marquee clears its item kind when no target is selected', () => {
+	const sequence = makeNodePathInfo(['body', 0], []);
+
+	const result = getTimelineMarqueeSelection({
+		lockedSelectionKind: 'sequence',
+		marqueeRect: {left: 0, top: 0, right: 100, bottom: 100},
+		candidates: [
+			{
+				item: {type: 'sequence', nodePathInfo: sequence},
+				rect: {left: 120, top: 0, right: 130, bottom: 10},
+			},
+		],
+	});
+
+	expect(result.lockedSelectionKind).toBe(null);
+	expect(result.selectedItems).toEqual([]);
 });
 
 test('keyframe diamond target resolution uses all selected prop rows when clicked row is selected', () => {
@@ -564,10 +770,6 @@ test('pasting an effect prop requires the same effect type and prop key', () => 
 			overrideIdsToNodePaths: {override: nodePath},
 		}),
 	).toEqual({type: 'effect-type-mismatch'} satisfies PasteEffectPropTarget);
-});
-
-test('Timeline top drag should not be enabled', () => {
-	expect(TIMELINE_TOP_DRAG).toBe(false);
 });
 
 test('Timeline duration drag applies the same delta to selected sequences', () => {
@@ -987,8 +1189,9 @@ test('Timeline from drag removes the prop at the default value', () => {
 	});
 });
 
-test('Timeline outlines should not be enabled', () => {
-	expect(ENABLE_OUTLINES).toBe(false);
+test('Timeline colors use the outlines palette', () => {
+	expect(TIMELINE_BACKGROUND).toBe('#0F1113');
+	expect(TIMELINE_TICKS_BACKGROUND).not.toBe(TIMELINE_BACKGROUND);
 });
 
 test('Timeline outlines visibility is enabled by default and persisted', () => {
@@ -1060,6 +1263,50 @@ test('Canvas outline hit targets render nested sequences above parents', () => {
 	]);
 });
 
+test('Canvas outline hit targets exclude sequences hidden from the timeline', () => {
+	const schema = {} satisfies SequenceSchema;
+	const refForOutline = {current: null};
+	const hiddenNodePathInfo = makeNodePathInfo(['body', 0], []);
+	const visibleNodePathInfo = makeNodePathInfo(['body', 1], []);
+	const childNodePathInfo = makeNodePathInfo(['body', 0, 'children', 0], []);
+	const outlines = getSequencesWithSelectableOutlines({
+		sequences: [
+			makeTimelineSequence({
+				schema,
+				id: 'hidden',
+				overrideId: 'hidden',
+				refForOutline,
+				showInTimeline: false,
+			}),
+			makeTimelineSequence({
+				schema,
+				id: 'visible',
+				overrideId: 'visible',
+				refForOutline,
+			}),
+			makeTimelineSequence({
+				schema,
+				id: 'child',
+				overrideId: 'child',
+				parentId: 'hidden',
+				refForOutline,
+			}),
+		],
+		overrideIdsToNodePaths: {
+			hidden: hiddenNodePathInfo.sequenceSubscriptionKey,
+			visible: visibleNodePathInfo.sequenceSubscriptionKey,
+			child: childNodePathInfo.sequenceSubscriptionKey,
+		},
+	});
+
+	expect(outlines.map((outline) => outline.key).sort()).toEqual(
+		[
+			getTimelineSequenceSelectionKey(visibleNodePathInfo),
+			getTimelineSequenceSelectionKey(childNodePathInfo),
+		].sort(),
+	);
+});
+
 test('UV handles project semantic outline corners', () => {
 	const points = [
 		{x: 200, y: 200},
@@ -1102,6 +1349,187 @@ test('UV handle pointer position maps back to UV coordinates', () => {
 	expect(result[1]).toBeCloseTo(uv[1], 5);
 });
 
+test('Transform origin parser supports keywords, percentages, px and z', () => {
+	const keyword = parseTransformOrigin('left bottom');
+	expect(keyword).not.toBeNull();
+	expect(
+		parsedTransformOriginToUv({
+			parsed: keyword!,
+			width: 200,
+			height: 100,
+		}),
+	).toEqual([0, 1]);
+
+	const px = parseTransformOrigin('100px 25% 10px');
+	expect(px).not.toBeNull();
+	expect(
+		parsedTransformOriginToUv({
+			parsed: px!,
+			width: 200,
+			height: 100,
+		}),
+	).toEqual([0.5, 0.25]);
+	expect(serializeTransformOrigin({uv: [0.5, 0.25], z: px!.z})).toBe(
+		'50% 25% 10px',
+	);
+});
+
+test('Transform origin parser rejects unsupported calc values', () => {
+	expect(parseTransformOrigin('calc(50% + 10px) 50%')).toBeNull();
+});
+
+test('Transform origin compensation keeps rotated and scaled elements in place', () => {
+	const next = compensateTranslateForTransformOrigin({
+		startTranslate: [20, 30],
+		deltaOrigin: [10, 5],
+		rotate: Math.PI / 2,
+		scale: [2, 3],
+	});
+
+	expect(next[0]).toBeCloseTo(-5, 5);
+	expect(next[1]).toBeCloseTo(45, 5);
+});
+
+test('Transform origin drag snaps to center, edge midpoints and corners', () => {
+	const points = [
+		{x: 0, y: 0},
+		{x: 100, y: 0},
+		{x: 100, y: 100},
+		{x: 0, y: 100},
+	] as const;
+
+	expect(
+		snapSelectedOutlineTransformOriginUv({
+			point: {x: 47, y: 53},
+			points,
+			uv: getUvCoordinateForPoint(points, {x: 47, y: 53}),
+		}),
+	).toEqual([0.5, 0.5]);
+	expect(
+		snapSelectedOutlineTransformOriginUv({
+			point: {x: 52, y: 4},
+			points,
+			uv: getUvCoordinateForPoint(points, {x: 52, y: 4}),
+		}),
+	).toEqual([0.5, 0]);
+	expect(
+		snapSelectedOutlineTransformOriginUv({
+			point: {x: 96, y: 49},
+			points,
+			uv: getUvCoordinateForPoint(points, {x: 96, y: 49}),
+		}),
+	).toEqual([1, 0.5]);
+	expect(
+		snapSelectedOutlineTransformOriginUv({
+			point: {x: 3, y: 96},
+			points,
+			uv: getUvCoordinateForPoint(points, {x: 3, y: 96}),
+		}),
+	).toEqual([0, 1]);
+});
+
+test('Transform origin drag snaps to rotated outline anchors', () => {
+	const points = [
+		{x: 10, y: 20},
+		{x: 90, y: 50},
+		{x: 70, y: 110},
+		{x: -10, y: 80},
+	] as const;
+	const topMiddle = getUvHandlePosition(points, [0.5, 0]);
+	const pointer = {x: topMiddle.x + 4, y: topMiddle.y - 3};
+
+	expect(
+		snapSelectedOutlineTransformOriginUv({
+			point: pointer,
+			points,
+			uv: getUvCoordinateForPoint(points, pointer),
+		}),
+	).toEqual([0.5, 0]);
+});
+
+test('Transform origin drag does not snap outside the magnetic threshold', () => {
+	const points = [
+		{x: 0, y: 0},
+		{x: 100, y: 0},
+		{x: 100, y: 100},
+		{x: 0, y: 100},
+	] as const;
+	const pointer = {
+		x: 50,
+		y: selectedOutlineTransformOriginSnapThresholdPx + 1,
+	};
+	const uv = getUvCoordinateForPoint(points, pointer);
+	const snapped = snapSelectedOutlineTransformOriginUv({
+		point: pointer,
+		points,
+		uv,
+	});
+
+	expect(snapped[0]).toBeCloseTo(uv[0], 5);
+	expect(snapped[1]).toBeCloseTo(uv[1], 5);
+});
+
+test('Transform origin axis locking keeps one UV axis fixed', () => {
+	const dimensions = {width: 200, height: 100};
+	const startUv = [0.25, 0.5] as const;
+	const mostlyHorizontal = [0.5, 0.75] as const;
+	const mostlyVertical = [0.35, 0.9] as const;
+
+	expect(
+		getSelectedOutlineTransformOriginLockedAxis({
+			axisLocked: true,
+			dimensions,
+			startUv,
+			uv: mostlyHorizontal,
+		}),
+	).toBe('x');
+	expect(
+		applySelectedOutlineTransformOriginAxisLock({
+			lockedAxis: 'x',
+			startUv,
+			uv: mostlyHorizontal,
+		}),
+	).toEqual([0.5, 0.5]);
+	expect(
+		getSelectedOutlineTransformOriginLockedAxis({
+			axisLocked: true,
+			dimensions,
+			startUv,
+			uv: mostlyVertical,
+		}),
+	).toBe('y');
+	expect(
+		applySelectedOutlineTransformOriginAxisLock({
+			lockedAxis: 'y',
+			startUv,
+			uv: mostlyVertical,
+		}),
+	).toEqual([0.25, 0.9]);
+	expect(
+		getSelectedOutlineTransformOriginLockedAxis({
+			axisLocked: false,
+			dimensions,
+			startUv,
+			uv: mostlyVertical,
+		}),
+	).toBeNull();
+	expect(
+		applySelectedOutlineTransformOriginAxisLock({
+			lockedAxis: null,
+			startUv,
+			uv: mostlyVertical,
+		}),
+	).toBe(mostlyVertical);
+	expect(
+		getSelectedOutlineTransformOriginLockedAxis({
+			axisLocked: true,
+			dimensions,
+			startUv,
+			uv: mostlyVertical,
+		}),
+	).toBe('y');
+});
+
 test('UV coordinate constraints preserve precision despite schema step', () => {
 	expect(
 		constrainUv([0.123456, 0.987654], {
@@ -1122,6 +1550,41 @@ test('UV coordinate constraints still clamp to schema min and max', () => {
 			step: 0.01,
 		}),
 	).toEqual([0, 1]);
+});
+
+test('UV coordinates round to three decimals by default when dragging', () => {
+	expect(
+		roundUvCoordinate([0.123456, 0.987654], {
+			type: 'uv-coordinate',
+			default: [0.5, 0.5],
+			step: 0.01,
+		}),
+	).toEqual([0.123, 0.988]);
+});
+
+test('UV coordinates allow finer configured steps when dragging', () => {
+	expect(
+		roundUvCoordinate([0.123456, 0.987654], {
+			type: 'uv-coordinate',
+			default: [0.5, 0.5],
+			step: 0.0001,
+		}),
+	).toEqual([0.1235, 0.9877]);
+});
+
+test('SVG viewport outline points are projected through the screen CTM', () => {
+	const points = getTransformedSvgViewportPoints({
+		viewport: {x: 0, y: 0, width: 100, height: 50},
+		ctm: {a: 0, b: 1, c: -1, d: 0, e: 75, f: -25},
+		containerRect: {left: 10, top: 20},
+	});
+
+	expect(points).toEqual([
+		{x: 65, y: -45},
+		{x: 65, y: 55},
+		{x: 15, y: 55},
+		{x: 15, y: -45},
+	]);
 });
 
 test('UV handle connection lines connect fields from schema metadata', () => {
@@ -1371,7 +1834,7 @@ test('Cmd+A selection only targets selectable timeline sequences', () => {
 	]);
 });
 
-test('Cmd+D only duplicates selected timeline sequence rows', () => {
+test('Cmd+D duplicates selected timeline sequence and effect rows', () => {
 	const sequenceNodePathInfo = makeNodePathInfo(['body', 0], []);
 	const effectNodePathInfo = makeNodePathInfo(['body', 1], ['effects', '0']);
 
@@ -1393,6 +1856,28 @@ test('Cmd+D only duplicates selected timeline sequence rows', () => {
 		{
 			type: 'sequence',
 			nodePathInfo: sequenceNodePathInfo,
+		},
+	]);
+
+	expect(
+		[
+			{type: 'sequence' as const, nodePathInfo: sequenceNodePathInfo},
+			{
+				type: 'sequence-effect' as const,
+				nodePathInfo: effectNodePathInfo,
+				i: 0,
+			},
+			{
+				type: 'keyframe' as const,
+				nodePathInfo: sequenceNodePathInfo,
+				frame: 12,
+			},
+		].filter(isDuplicatableEffectSelection),
+	).toEqual([
+		{
+			type: 'sequence-effect',
+			nodePathInfo: effectNodePathInfo,
+			i: 0,
 		},
 	]);
 });
@@ -1495,6 +1980,53 @@ test('Backspace reset targets selected keyframed sequence props', () => {
 			fileName: '/project/src/Comp.tsx',
 			nodePath,
 			fieldKey: 'opacity',
+			value: 1,
+			defaultValue: '1',
+			schema,
+		},
+	]);
+});
+
+test('Backspace reset targets selected computed sequence props with defaults', () => {
+	const schema = {
+		'style.scale': {type: 'scale', default: 1, max: 100},
+	} satisfies SequenceSchema;
+	const scaleNodePathInfo = makeNodePathInfo(
+		['body', 0],
+		['controls', 'style.scale'],
+	);
+	const nodePath = scaleNodePathInfo.sequenceSubscriptionKey;
+	const propStatuses = {
+		[Internals.makeSequencePropsSubscriptionKey(nodePath)]: {
+			canUpdate: true,
+			props: {
+				'style.scale': {
+					status: 'computed',
+				},
+			},
+			effects: [],
+		},
+	} satisfies PropStatuses;
+
+	const resetTargets = getTimelinePropResetTargets({
+		selections: [
+			{
+				type: 'sequence-prop',
+				nodePathInfo: scaleNodePathInfo,
+				key: 'style.scale',
+			},
+		],
+		sequences: [makeTimelineSequence({schema})],
+		overrideIdsToNodePaths: {override: nodePath},
+		propStatuses,
+	});
+
+	expect(resetTargets).toEqual([
+		{
+			type: 'sequence-prop',
+			fileName: '/project/src/Comp.tsx',
+			nodePath,
+			fieldKey: 'style.scale',
 			value: 1,
 			defaultValue: '1',
 			schema,
@@ -1645,6 +2177,149 @@ test('Selected outline dragging can lock movement to the dominant axis', () => {
 	).toEqual({deltaX: 12, deltaY: 13});
 });
 
+test('Selected outline keyboard nudging moves by one or ten pixels', () => {
+	const schema = {
+		'style.translate': {type: 'translate', default: '0px 0px'},
+	} satisfies SequenceSchema;
+	const nodePath = makeKey(['body', 0]);
+	const dragStates = [
+		{
+			defaultValue: JSON.stringify('0px 0px'),
+			key: Internals.makeSequencePropsSubscriptionKey(nodePath),
+			sourceFrame: 12,
+			startX: 10,
+			startY: 20,
+			target: {
+				clientId: 'client',
+				propStatus: {status: 'static', codeValue: '10px 20px'},
+				fieldDefault: '0px 0px',
+				keyframeDisplayOffset: 30,
+				nodePath,
+				schema,
+			},
+		},
+	] satisfies SelectedOutlineDragState[];
+
+	expect(
+		getSelectedOutlineKeyboardNudgeDelta({
+			direction: 'left',
+			shiftKey: false,
+		}),
+	).toBe(-1);
+	expect(
+		getSelectedOutlineKeyboardNudgeDelta({
+			direction: 'right',
+			shiftKey: true,
+		}),
+	).toBe(10);
+	expect(
+		getSelectedOutlineKeyboardNudgeDelta({
+			direction: 'up',
+			shiftKey: false,
+		}),
+	).toBe(-1);
+	expect(
+		getSelectedOutlineKeyboardNudgeDelta({
+			direction: 'down',
+			shiftKey: true,
+		}),
+	).toBe(10);
+	const accumulatedDeltas = [
+		{direction: 'right', shiftKey: false},
+		{direction: 'right', shiftKey: false},
+		{direction: 'down', shiftKey: true},
+	] satisfies readonly {
+		readonly direction: 'left' | 'right' | 'up' | 'down';
+		readonly shiftKey: boolean;
+	}[];
+	const finalDeltas = accumulatedDeltas.reduce(
+		(deltas, keyPress) =>
+			getSelectedOutlineKeyboardNudgeDeltas({
+				...deltas,
+				direction: keyPress.direction,
+				shiftKey: keyPress.shiftKey,
+			}),
+		{deltaX: 0, deltaY: 0},
+	);
+
+	expect(finalDeltas).toEqual({deltaX: 2, deltaY: 10});
+
+	const horizontalLastValues = getSelectedOutlineDragValues({
+		dragStates,
+		deltaX: getSelectedOutlineKeyboardNudgeDelta({
+			direction: 'right',
+			shiftKey: true,
+		}),
+		deltaY: 0,
+	});
+
+	expect(horizontalLastValues.get(dragStates[0].key)).toBe('20px 20px');
+	expect(
+		getSelectedOutlineDragChanges({
+			dragStates,
+			lastValues: horizontalLastValues,
+		}),
+	).toEqual([
+		{
+			type: 'static',
+			fileName: '/project/src/Comp.tsx',
+			nodePath,
+			fieldKey: 'style.translate',
+			value: '20px 20px',
+			defaultValue: JSON.stringify('0px 0px'),
+			schema,
+		},
+	]);
+
+	const verticalLastValues = getSelectedOutlineDragValues({
+		dragStates,
+		deltaX: 0,
+		deltaY: getSelectedOutlineKeyboardNudgeDelta({
+			direction: 'down',
+			shiftKey: true,
+		}),
+	});
+
+	expect(verticalLastValues.get(dragStates[0].key)).toBe('10px 30px');
+	expect(
+		getSelectedOutlineDragChanges({
+			dragStates,
+			lastValues: verticalLastValues,
+		}),
+	).toEqual([
+		{
+			type: 'static',
+			fileName: '/project/src/Comp.tsx',
+			nodePath,
+			fieldKey: 'style.translate',
+			value: '10px 30px',
+			defaultValue: JSON.stringify('0px 0px'),
+			schema,
+		},
+	]);
+});
+
+test('Selected outline dragging starts after a screen pixel threshold', () => {
+	expect(
+		isSelectedOutlineDragPastThreshold({
+			deltaX: selectedOutlineDragThresholdPx - 0.1,
+			deltaY: 0,
+		}),
+	).toBe(false);
+	expect(
+		isSelectedOutlineDragPastThreshold({
+			deltaX: selectedOutlineDragThresholdPx,
+			deltaY: 0,
+		}),
+	).toBe(true);
+	expect(
+		isSelectedOutlineDragPastThreshold({
+			deltaX: 3,
+			deltaY: 3,
+		}),
+	).toBe(true);
+});
+
 test('Selected outline dragging keyframed translate adds a keyframe at the source frame', () => {
 	const schema = {
 		'style.translate': {type: 'translate', default: '0px 0px'},
@@ -1719,6 +2394,7 @@ test('Selected outline edge dragging scales one axis when scale is unlinked', ()
 		{
 			defaultValue: JSON.stringify(1),
 			key: Internals.makeSequencePropsSubscriptionKey(nodePath),
+			sourceFrame: 0,
 			startX: 2,
 			startY: 3,
 			startZ: 1,
@@ -1727,6 +2403,7 @@ test('Selected outline edge dragging scales one axis when scale is unlinked', ()
 				propStatus: {status: 'static', codeValue: '2 3'},
 				fieldDefault: 1,
 				fieldSchema: schema['style.scale'],
+				keyframeDisplayOffset: 0,
 				linked: false,
 				nodePath,
 				schema,
@@ -1748,6 +2425,7 @@ test('Selected outline edge dragging scales one axis when scale is unlinked', ()
 		}),
 	).toEqual([
 		{
+			type: 'static',
 			fileName: '/project/src/Comp.tsx',
 			nodePath,
 			fieldKey: 'style.scale',
@@ -1766,6 +2444,41 @@ test('Selected outline edge dragging scales one axis when scale is unlinked', ()
 	expect(negativeValues.get(dragStates[0].key)).toBe('-1 3');
 });
 
+test('Selected outline edge dragging rounds scale values', () => {
+	const schema = {
+		'style.scale': {type: 'scale', default: 1, max: 100},
+	} satisfies SequenceSchema;
+	const nodePath = makeKey(['body', 0]);
+	const dragStates = [
+		{
+			defaultValue: JSON.stringify(1),
+			key: Internals.makeSequencePropsSubscriptionKey(nodePath),
+			sourceFrame: 0,
+			startX: 2,
+			startY: 3,
+			startZ: 1,
+			target: {
+				clientId: 'client',
+				propStatus: {status: 'static', codeValue: '2 3'},
+				fieldDefault: 1,
+				fieldSchema: schema['style.scale'],
+				keyframeDisplayOffset: 0,
+				linked: false,
+				nodePath,
+				schema,
+			},
+		},
+	] satisfies SelectedOutlineScaleDragState[];
+
+	const lastValues = getSelectedOutlineScaleDragValues({
+		dragStates,
+		axis: 'x',
+		scaleFactor: 1 / 3,
+	});
+
+	expect(lastValues.get(dragStates[0].key)).toBe('0.667 3');
+});
+
 test('Selected outline edge dragging preserves aspect ratio when scale is linked', () => {
 	const schema = {
 		'style.scale': {type: 'scale', default: 1, max: 100},
@@ -1775,6 +2488,7 @@ test('Selected outline edge dragging preserves aspect ratio when scale is linked
 		{
 			defaultValue: JSON.stringify(1),
 			key: Internals.makeSequencePropsSubscriptionKey(nodePath),
+			sourceFrame: 0,
 			startX: 2,
 			startY: 3,
 			startZ: 1,
@@ -1783,6 +2497,7 @@ test('Selected outline edge dragging preserves aspect ratio when scale is linked
 				propStatus: {status: 'static', codeValue: '2 3'},
 				fieldDefault: 1,
 				fieldSchema: schema['style.scale'],
+				keyframeDisplayOffset: 0,
 				linked: true,
 				nodePath,
 				schema,
@@ -1799,6 +2514,293 @@ test('Selected outline edge dragging preserves aspect ratio when scale is linked
 	expect(lastValues.get(dragStates[0].key)).toBe('2.5 3.75');
 });
 
+test('Selected outline corner dragging rotates selected sequences', () => {
+	const schema = {
+		'style.rotate': {type: 'rotation-css', default: '0deg'},
+	} satisfies SequenceSchema;
+	const firstNodePath = makeKey(['body', 0]);
+	const secondNodePath = makeKey(['body', 1]);
+	const dragStates = [
+		{
+			defaultValue: JSON.stringify('0deg'),
+			key: Internals.makeSequencePropsSubscriptionKey(firstNodePath),
+			sourceFrame: 12,
+			startDegrees: 45,
+			target: {
+				clientId: 'client',
+				propStatus: {status: 'static', codeValue: '45deg'},
+				fieldDefault: '0deg',
+				fieldSchema: schema['style.rotate'],
+				keyframeDisplayOffset: 30,
+				nodePath: firstNodePath,
+				schema,
+				transformOriginValue: '50% 50%',
+			},
+		},
+		{
+			defaultValue: JSON.stringify('0deg'),
+			key: Internals.makeSequencePropsSubscriptionKey(secondNodePath),
+			sourceFrame: 12,
+			startDegrees: -10,
+			target: {
+				clientId: 'client',
+				propStatus: {status: 'static', codeValue: '-10deg'},
+				fieldDefault: '0deg',
+				fieldSchema: schema['style.rotate'],
+				keyframeDisplayOffset: 30,
+				nodePath: secondNodePath,
+				schema,
+				transformOriginValue: '50% 50%',
+			},
+		},
+	] satisfies SelectedOutlineRotationDragState[];
+
+	const lastValues = getSelectedOutlineRotationDragValues({
+		dragStates,
+		rotationDeltaDegrees: 90,
+	});
+
+	expect(lastValues.get(dragStates[0].key)).toBe('135deg');
+	expect(lastValues.get(dragStates[1].key)).toBe('80deg');
+	expect(
+		getSelectedOutlineRotationDragChanges({
+			dragStates,
+			lastValues,
+		}),
+	).toEqual([
+		{
+			type: 'static',
+			fileName: '/project/src/Comp.tsx',
+			nodePath: firstNodePath,
+			fieldKey: 'style.rotate',
+			value: '135deg',
+			defaultValue: JSON.stringify('0deg'),
+			schema,
+		},
+		{
+			type: 'static',
+			fileName: '/project/src/Comp.tsx',
+			nodePath: secondNodePath,
+			fieldKey: 'style.rotate',
+			value: '80deg',
+			defaultValue: JSON.stringify('0deg'),
+			schema,
+		},
+	]);
+});
+
+test('Selected outline corner dragging rounds rotation values', () => {
+	const schema = {
+		'style.rotate': {type: 'rotation-css', default: '0deg'},
+	} satisfies SequenceSchema;
+	const nodePath = makeKey(['body', 0]);
+	const dragStates = [
+		{
+			defaultValue: JSON.stringify('0deg'),
+			key: Internals.makeSequencePropsSubscriptionKey(nodePath),
+			sourceFrame: 12,
+			startDegrees: 32,
+			target: {
+				clientId: 'client',
+				propStatus: {status: 'static', codeValue: '32deg'},
+				fieldDefault: '0deg',
+				fieldSchema: schema['style.rotate'],
+				keyframeDisplayOffset: 30,
+				nodePath,
+				schema,
+				transformOriginValue: '50% 50%',
+			},
+		},
+	] satisfies SelectedOutlineRotationDragState[];
+
+	const lastValues = getSelectedOutlineRotationDragValues({
+		dragStates,
+		rotationDeltaDegrees: 0.480832,
+	});
+
+	expect(lastValues.get(dragStates[0].key)).toBe('32.5deg');
+});
+
+test('Selected outline corner dragging keyframed rotation adds a keyframe at the source frame', () => {
+	const schema = {
+		'style.rotate': {type: 'rotation-css', default: '0deg'},
+	} satisfies SequenceSchema;
+	const nodePath = makeKey(['body', 0]);
+	const dragStates = [
+		{
+			defaultValue: JSON.stringify('0deg'),
+			key: Internals.makeSequencePropsSubscriptionKey(nodePath),
+			sourceFrame: 20,
+			startDegrees: 45,
+			target: {
+				clientId: 'client',
+				propStatus: {
+					status: 'keyframed',
+					interpolationFunction: 'interpolate',
+					keyframes: [
+						{frame: 0, value: '0deg'},
+						{frame: 40, value: '90deg'},
+					],
+					easing: ['linear'],
+					clamping: {left: 'extend', right: 'extend'},
+					posterize: undefined,
+				},
+				fieldDefault: '0deg',
+				fieldSchema: schema['style.rotate'],
+				keyframeDisplayOffset: 30,
+				nodePath,
+				schema,
+				transformOriginValue: '50% 50%',
+			},
+		},
+	] satisfies SelectedOutlineRotationDragState[];
+
+	const lastValues = getSelectedOutlineRotationDragValues({
+		dragStates,
+		rotationDeltaDegrees: 15,
+	});
+
+	expect(lastValues.get(dragStates[0].key)).toBe('60deg');
+	expect(
+		getSelectedOutlineRotationDragChanges({
+			dragStates,
+			lastValues,
+		}),
+	).toEqual([
+		{
+			type: 'keyframed',
+			fileName: '/project/src/Comp.tsx',
+			nodePath,
+			fieldKey: 'style.rotate',
+			sourceFrame: 20,
+			value: '60deg',
+			schema,
+			clientId: 'client',
+		},
+	]);
+	expect(
+		getSelectedOutlineRotationDragChanges({
+			dragStates,
+			lastValues: new Map([[dragStates[0].key, '45deg']]),
+		}),
+	).toEqual([]);
+});
+
+test('Selected outline rotation delta does not jump at the angle wrap-around', () => {
+	const firstStep = getSelectedOutlineRotationDeltaDegrees({
+		from: 170,
+		to: 175,
+	});
+	const secondStep = getSelectedOutlineRotationDeltaDegrees({
+		from: 175,
+		to: -170,
+	});
+
+	expect(firstStep + secondStep).toBe(20);
+});
+
+test('Selected outline rotation corners use the outline corners and center', () => {
+	const points = [
+		{x: 0, y: 0},
+		{x: 100, y: 0},
+		{x: 100, y: 50},
+		{x: 0, y: 50},
+	] as const;
+	const topRight = getSelectedOutlineRotationCornerInfo(points, 'top-right');
+
+	expect(topRight.point).toEqual({x: 100, y: 0});
+	expect(topRight.center).toEqual({x: 50, y: 25});
+	expect(topRight.cursor).toContain('data:image/svg+xml');
+	expect(decodeURIComponent(topRight.cursor)).toContain(
+		'<svg width="24" height="24"',
+	);
+	expect(topRight.cursor).toContain('") 12 12, alias');
+});
+
+test('Selected outline rotation pivot follows transform origin', () => {
+	const points = [
+		{x: 0, y: 0},
+		{x: 100, y: 0},
+		{x: 100, y: 50},
+		{x: 0, y: 50},
+	] as const;
+	const dimensions = {width: 100, height: 50};
+
+	expect(
+		getSelectedOutlineRotationPivot({
+			dimensions,
+			points,
+			transformOriginValue: 'center',
+		}),
+	).toEqual({x: 50, y: 25});
+	expect(
+		getSelectedOutlineRotationPivot({
+			dimensions,
+			points,
+			transformOriginValue: 'left bottom',
+		}),
+	).toEqual({x: 0, y: 50});
+	expect(
+		getSelectedOutlineRotationPivot({
+			dimensions,
+			points,
+			transformOriginValue: '25px top',
+		}),
+	).toEqual({x: 25, y: 0});
+	expect(
+		getSelectedOutlineRotationPivot({
+			dimensions,
+			points,
+			transformOriginValue: 'calc(50% + 1px) center',
+		}),
+	).toEqual({x: 50, y: 25});
+	expect(
+		getSelectedOutlineRotationPivot({
+			dimensions: null,
+			points,
+			transformOriginValue: 'left top',
+		}),
+	).toEqual({x: 50, y: 25});
+});
+
+test('Selected outline rotation cursors use the outline rotation', () => {
+	const points = [
+		{x: 0, y: 0},
+		{x: 100, y: 0},
+		{x: 100, y: 100},
+		{x: 0, y: 100},
+	] as const;
+
+	expect(
+		getSelectedOutlineRotationCornerInfo(points, 'top-left').cursorDegrees,
+	).toBe(270);
+	expect(
+		getSelectedOutlineRotationCornerInfo(points, 'top-right').cursorDegrees,
+	).toBe(0);
+	expect(
+		getSelectedOutlineRotationCornerInfo(points, 'bottom-right').cursorDegrees,
+	).toBe(90);
+	expect(
+		getSelectedOutlineRotationCornerInfo(points, 'bottom-left').cursorDegrees,
+	).toBe(180);
+});
+
+test('Selected outline rotation cursor angle is independent from aspect ratio', () => {
+	const points = [
+		{x: 0, y: 0},
+		{x: 160, y: 0},
+		{x: 160, y: 90},
+		{x: 0, y: 90},
+	] as const;
+
+	expect(
+		getSelectedOutlineRotationCornerInfo(points, 'top-right').cursorDegrees,
+	).toBe(0);
+	expect(
+		getSelectedOutlineRotationCornerInfo(points, 'bottom-left').cursorDegrees,
+	).toBe(180);
+});
+
 test('Selected outline scale edges project pointer movement onto the edge normal', () => {
 	const points = [
 		{x: 0, y: 0},
@@ -1810,11 +2812,41 @@ test('Selected outline scale edges project pointer movement onto the edge normal
 	const top = getSelectedOutlineScaleEdgeInfo(points, 'top');
 
 	expect(right?.axis).toBe('x');
+	expect(right?.cursor).toBe('ew-resize');
 	expect(right?.extent).toBe(100);
 	expect(right?.normal).toEqual({x: 1, y: 0});
 	expect(top?.axis).toBe('y');
+	expect(top?.cursor).toBe('ns-resize');
 	expect(top?.extent).toBe(50);
 	expect(top?.normal).toEqual({x: 0, y: -1});
+});
+
+test('Selected outline scale edge cursors follow rotated outlines', () => {
+	const rotated90Degrees = [
+		{x: 0, y: 0},
+		{x: 0, y: 100},
+		{x: -50, y: 100},
+		{x: -50, y: 0},
+	] as const;
+	const rotated45Degrees = [
+		{x: 0, y: 0},
+		{x: 100, y: 100},
+		{x: 50, y: 150},
+		{x: -50, y: 50},
+	] as const;
+
+	expect(
+		getSelectedOutlineScaleEdgeInfo(rotated90Degrees, 'right')?.cursor,
+	).toBe('ns-resize');
+	expect(getSelectedOutlineScaleEdgeInfo(rotated90Degrees, 'top')?.cursor).toBe(
+		'ew-resize',
+	);
+	expect(
+		getSelectedOutlineScaleEdgeInfo(rotated45Degrees, 'right')?.cursor,
+	).toBe('nwse-resize');
+	expect(getSelectedOutlineScaleEdgeInfo(rotated45Degrees, 'top')?.cursor).toBe(
+		'nesw-resize',
+	);
 });
 
 test('Backspace reset targets selected effect props', () => {
@@ -2417,6 +3449,45 @@ test('Cmd/Ctrl+click replaces incompatible mixed selections', () => {
 	});
 });
 
+test('Guide selections are single selections and incompatible with timeline items', () => {
+	const guideA = {type: 'guide' as const, guideId: 'guide-a'};
+	const guideB = {type: 'guide' as const, guideId: 'guide-b'};
+	const rowA = {
+		type: 'sequence' as const,
+		nodePathInfo: makeNodePathInfo(['body', 0], []),
+	};
+
+	expect(getTimelineSelectionKey(guideA)).toBe('guide.guide-a');
+	expect(
+		getTimelineSelectionAfterInteraction({
+			currentState: {
+				selectedItems: [rowA],
+				anchor: rowA,
+			},
+			clickedItem: guideA,
+			interaction: {shiftKey: false, toggleKey: true},
+			allSelectableItems: [rowA, guideA, guideB],
+		}),
+	).toEqual({
+		selectedItems: [guideA],
+		anchor: guideA,
+	});
+	expect(
+		getTimelineSelectionAfterInteraction({
+			currentState: {
+				selectedItems: [guideA],
+				anchor: guideA,
+			},
+			clickedItem: guideB,
+			interaction: {shiftKey: true, toggleKey: false},
+			allSelectableItems: [rowA, guideA, guideB],
+		}),
+	).toEqual({
+		selectedItems: [guideB],
+		anchor: guideB,
+	});
+});
+
 test('Shift+click selects a contiguous row range from the anchor', () => {
 	const rowA = {
 		type: 'sequence' as const,
@@ -2505,6 +3576,136 @@ test('Selecting an easing segment replaces keyframe selection with the new type'
 	});
 });
 
+test('Dragging an easing segment drags selected keyframes', () => {
+	const selectedKeyframeA = {
+		type: 'keyframe' as const,
+		nodePathInfo: makeNodePathInfo(['body', 0], ['controls', 'opacity']),
+		frame: 10,
+	};
+	const selectedKeyframeB = {
+		type: 'keyframe' as const,
+		nodePathInfo: makeNodePathInfo(['body', 0], ['controls', 'opacity']),
+		frame: 30,
+	};
+	const easing = {
+		type: 'easing' as const,
+		nodePathInfo: makeNodePathInfo(['body', 0], ['controls', 'opacity']),
+		fromFrame: 10,
+		toFrame: 20,
+		segmentIndex: 0,
+	};
+
+	expect(
+		getKeyframesForTimelineEasingDrag({
+			currentSelections: [selectedKeyframeA, selectedKeyframeB],
+			interaction: {shiftKey: false, toggleKey: false},
+			selectionItem: easing,
+			selected: false,
+		}),
+	).toEqual([selectedKeyframeA, selectedKeyframeB]);
+});
+
+test('Dragging only selected easing segments drags connected keyframes', () => {
+	const easingA = {
+		type: 'easing' as const,
+		nodePathInfo: makeNodePathInfo(['body', 0], ['controls', 'opacity']),
+		fromFrame: 10,
+		toFrame: 20,
+		segmentIndex: 0,
+	};
+	const easingB = {
+		type: 'easing' as const,
+		nodePathInfo: makeNodePathInfo(['body', 0], ['controls', 'opacity']),
+		fromFrame: 20,
+		toFrame: 30,
+		segmentIndex: 1,
+	};
+
+	expect(
+		getKeyframesForTimelineEasingDrag({
+			currentSelections: [easingA, easingB],
+			interaction: {shiftKey: false, toggleKey: false},
+			selectionItem: easingA,
+			selected: true,
+		}),
+	).toEqual([
+		{
+			type: 'keyframe',
+			nodePathInfo: easingA.nodePathInfo,
+			frame: 10,
+		},
+		{
+			type: 'keyframe',
+			nodePathInfo: easingA.nodePathInfo,
+			frame: 20,
+		},
+		{
+			type: 'keyframe',
+			nodePathInfo: easingB.nodePathInfo,
+			frame: 30,
+		},
+	]);
+});
+
+test('Easing selection keys follow segment identity while frames move', () => {
+	const nodePathInfo = makeNodePathInfo(['body', 0], ['controls', 'opacity']);
+
+	expect(
+		getTimelineSelectionKey({
+			type: 'easing',
+			nodePathInfo,
+			fromFrame: 10,
+			toFrame: 20,
+			segmentIndex: 0,
+		}),
+	).toBe(
+		getTimelineSelectionKey({
+			type: 'easing',
+			nodePathInfo,
+			fromFrame: 15,
+			toFrame: 25,
+			segmentIndex: 0,
+		}),
+	);
+});
+
+test('Easing keyframe drag preserves selected item types at moved frames', () => {
+	const nodePathInfo = makeNodePathInfo(['body', 0], ['controls', 'opacity']);
+	const selectedKeyframe = {
+		type: 'keyframe' as const,
+		nodePathInfo,
+		frame: 10,
+	};
+	const selectedEasing = {
+		type: 'easing' as const,
+		nodePathInfo,
+		fromFrame: 10,
+		toFrame: 20,
+		segmentIndex: 0,
+	};
+
+	expect(
+		getTimelineSelectionsAfterEasingKeyframeDrag({
+			delta: 5,
+			selections: [selectedKeyframe, selectedEasing],
+			targets: [
+				{nodePathInfo, frame: 10},
+				{nodePathInfo, frame: 20},
+			],
+		}),
+	).toEqual([
+		{
+			...selectedKeyframe,
+			frame: 15,
+		},
+		{
+			...selectedEasing,
+			fromFrame: 15,
+			toFrame: 25,
+		},
+	]);
+});
+
 test('Timeline double-click actions ignore selection modifier clicks', () => {
 	expect(
 		isTimelineSelectionModifierEvent({
@@ -2534,4 +3735,31 @@ test('Timeline double-click actions ignore selection modifier clicks', () => {
 			ctrlKey: false,
 		}),
 	).toBe(false);
+});
+
+test('Selected timeline rows do not reselect on pointer down without modifiers', () => {
+	expect(
+		shouldSelectTimelineRowOnPointerDown({
+			selected: true,
+			shiftKey: false,
+			metaKey: false,
+			ctrlKey: false,
+		}),
+	).toBe(false);
+	expect(
+		shouldSelectTimelineRowOnPointerDown({
+			selected: false,
+			shiftKey: false,
+			metaKey: false,
+			ctrlKey: false,
+		}),
+	).toBe(true);
+	expect(
+		shouldSelectTimelineRowOnPointerDown({
+			selected: true,
+			shiftKey: false,
+			metaKey: true,
+			ctrlKey: false,
+		}),
+	).toBe(true);
 });

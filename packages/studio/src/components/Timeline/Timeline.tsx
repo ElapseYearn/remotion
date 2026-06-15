@@ -119,6 +119,7 @@ const TimelineContextMenuArea: React.FC<{
 					type: 'solid',
 					width: videoConfig.width,
 					height: videoConfig.height,
+					position: null,
 				},
 			});
 
@@ -155,6 +156,7 @@ const TimelineContextMenuArea: React.FC<{
 				files,
 				compositionFile,
 				compositionId: currentCompositionId,
+				dropPosition: null,
 			});
 		} finally {
 			setIsAddingAsset(false);
@@ -255,6 +257,7 @@ const TimelineInner: React.FC = () => {
 					<SubscribeToNodePaths
 						key={sequence.id}
 						overrideId={sequence.controls.overrideId}
+						componentIdentity={sequence.controls.componentIdentity}
 						schema={sequence.controls.schema}
 						getStack={sequence.getStack}
 						effects={sequence.effects}

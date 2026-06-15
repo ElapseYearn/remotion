@@ -1,6 +1,7 @@
 import {routes, type VercelConfig} from '@vercel/config/v1';
 
 export const config: VercelConfig = {
+	buildCommand: 'cd .. && timeout 20m pnpm build-docs',
 	headers: [
 		routes.cacheControl('/assets/(.*)', {
 			public: true,
@@ -314,6 +315,9 @@ export const config: VercelConfig = {
 		),
 		routes.redirect('/docs/video', '/docs/html5-video', {permanent: false}),
 		routes.redirect('/docs/audio', '/docs/html5-audio', {permanent: false}),
+		routes.redirect('/docs/studio/code-edits', '/docs/studio/interactivity', {
+			permanent: true,
+		}),
 		routes.redirect('/terms', 'https://remotion.pro/terms', {
 			permanent: false,
 		}),

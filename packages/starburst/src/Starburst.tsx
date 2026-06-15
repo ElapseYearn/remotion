@@ -277,6 +277,7 @@ const StarburstCanvas: React.FC<{
 export const starburstSchema = {
 	durationInFrames: Internals.durationInFramesField,
 	from: Internals.fromField,
+	freeze: Internals.freezeField,
 	rays: {
 		type: 'number',
 		min: 2,
@@ -436,6 +437,7 @@ const StarburstInner: React.FC<
 
 export const Starburst = Internals.wrapInSchema({
 	Component: StarburstInner,
+	componentIdentity: 'dev.remotion.starburst.Starburst',
 	schema: starburstSchema,
 	supportsEffects: false,
 });

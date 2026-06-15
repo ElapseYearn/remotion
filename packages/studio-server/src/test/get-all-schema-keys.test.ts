@@ -11,10 +11,13 @@ test('getAllSchemaKeys returns every key across all enum variants', () => {
 	expect(keys.sort()).toEqual(
 		[
 			'hidden',
+			'name',
+			'showInTimeline',
 			'layout',
 			'style.translate',
 			'style.scale',
 			'style.rotate',
+			'style.transformOrigin',
 			'style.opacity',
 			'premountFor',
 			'postmountFor',
@@ -22,6 +25,7 @@ test('getAllSchemaKeys returns every key across all enum variants', () => {
 			'styleWhilePostmounted',
 			'durationInFrames',
 			'from',
+			'freeze',
 		].sort(),
 	);
 });

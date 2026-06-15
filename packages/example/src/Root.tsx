@@ -39,6 +39,7 @@ import {FontDemo} from './Fonts';
 import {FractionalSequenceVideo} from './FractionalSequenceVideo';
 import {Framer} from './Framer';
 import {FreezeExample} from './Freeze/FreezeExample';
+import {SequenceFreezeExample} from './Freeze/SequenceFreezeExample';
 import {FreezePortion} from './FreezePortion/FreezePortion';
 import {GifEffectsTestbed} from './Gif/GifEffects';
 import {GoogleFontsCjk} from './GoogleFontsCjk/GoogleFontsCjk';
@@ -182,6 +183,11 @@ import {AudioSmoothnessTrimButtonComp} from './AudioSmoothness/TrimButton';
 import Amplify from './AudioTesting/Amplify';
 import {Issue7568} from './AudioTesting/Issue7568';
 import {BrowserTest} from './BrowserTest';
+import {
+	CanvasCapturePreview,
+	calculateCanvasCapturePreviewMetadata,
+	canvasCapturePreviewDefaultProps,
+} from './CanvasCapturePreview';
 import {EdgeBlur} from './EdgeBlur/EdgeBlur';
 import {EffectsTestbed} from './EffectsTestbed/EffectsTestbed';
 import {HalftoneGradient} from './EffectsTestbed/HalftoneGradient';
@@ -239,6 +245,10 @@ import {RemotionMediaVideoTexture} from './VideoTexture';
 import {VisualControls} from './VisualControls';
 import {FastUpdates} from './VisualModeTests/FastUpdates';
 import {FastUpdatesNested} from './VisualModeTests/FastUpdatesNested';
+import {
+	InteractiveHtmlElements,
+	InteractiveSvgElements,
+} from './VisualModeTests/InteractiveComponents';
 import {VoiceVisualization} from './voice-visualization';
 import {WhisperWeb} from './WhisperWeb';
 
@@ -406,6 +416,16 @@ export const Index: React.FC = () => {
 					fps={30}
 					durationInFrames={120}
 				/>
+				<Composition
+					id="canvas-capture-preview"
+					component={CanvasCapturePreview}
+					width={1920}
+					height={1080}
+					fps={30}
+					durationInFrames={120}
+					defaultProps={canvasCapturePreviewDefaultProps}
+					calculateMetadata={calculateCanvasCapturePreviewMetadata}
+				/>
 			</Folder>
 			<Folder name="dynamic-parameters">
 				<Composition
@@ -533,6 +553,14 @@ export const Index: React.FC = () => {
 					height={720}
 					fps={30}
 					durationInFrames={300}
+				/>
+				<Composition
+					id="sequence-freeze-example"
+					component={SequenceFreezeExample}
+					width={1280}
+					height={720}
+					fps={30}
+					durationInFrames={150}
 				/>
 				<Composition
 					id="freeze-portion"
@@ -2495,6 +2523,22 @@ export const Index: React.FC = () => {
 					height={1080}
 					fps={30}
 					durationInFrames={60}
+				/>
+				<Composition
+					id="interactive-html-elements"
+					component={InteractiveHtmlElements}
+					width={1080}
+					height={1080}
+					fps={30}
+					durationInFrames={90}
+				/>
+				<Composition
+					id="interactive-svg-elements"
+					component={InteractiveSvgElements}
+					width={1080}
+					height={1080}
+					fps={30}
+					durationInFrames={90}
 				/>
 			</Folder>
 			<ChangingTrimBeforeValue />

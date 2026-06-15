@@ -27,6 +27,7 @@ import {
 import {CompositionRenderErrorContext} from './composition-render-error-context.js';
 import {type CompProps} from './Composition.js';
 import type {
+	JsxComponentIdentity,
 	TCompMetadata,
 	TComposition,
 	TRenderAsset,
@@ -119,6 +120,7 @@ import {
 } from './ResolveCompositionConfig.js';
 import {
 	durationInFramesField,
+	freezeField,
 	fromField,
 	hiddenField,
 	sequencePremountSchema,
@@ -407,6 +409,7 @@ export const Internals = {
 	getEffectPropStatusesCtx,
 	hiddenField,
 	durationInFramesField,
+	freezeField,
 	fromField,
 } as const;
 
@@ -433,6 +436,7 @@ export type {
 	GetEffectDragOverrides,
 	GetEffectPropStatuses,
 	GetPropStatuses,
+	JsxComponentIdentity,
 	LoggingContextValue,
 	MediaVolumeContextValue,
 	NonceHistory,
